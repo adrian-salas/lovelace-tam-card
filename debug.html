@@ -160,13 +160,12 @@
       call_service: () => {},
     };
 
+    let tamCardLoaded = false;
+
     // Load the card and test
     async function init() {
       try {
         addLog('📦 Loading tam-card.js...', 'info');
-        
-        // Mock Home Assistant globally
-        window.customElements = window.customElements || {};
         
         const script = document.createElement('script');
         script.src = 'http://localhost:5000/tam-card.js';
@@ -180,14 +179,19 @@
           addLog('✅ tam-card.js loaded successfully', 'success');
           document.getElementById('load-status').innerHTML = '<span class="success">✅ tam-card.js loaded</span>';
           
-          // Wait a bit for custom element to be registered
-          await new Promise(resolve => setTimeout(resolve, 500));
+          // Wait for custom element to be registered
+          await new Promise(resolve => setTimeout(resolve, 1000));
           
           try {
-            const tamCardElement = document.createElement('tam-card');
-            addLog('✅ tam-card custom element created', 'success');
+            // Check if tam-card is registered
+            if (customElements.get('tam-card')) {
+              addLog('✅ tam-card custom element registered', 'success');
+              tamCardLoaded = true;
+            } else {
+              addLog('⚠️ tam-card custom element not found', 'warn');
+            }
           } catch (e) {
-            addLog(`⚠️ Error creating tam-card: ${e.message}`, 'warn');
+            addLog(`⚠️ Error checking element: ${e.message}`, 'warn');
           }
         };
 
@@ -250,6 +254,11 @@
 
     function renderCard() {
       try {
+        if (!tamCardLoaded) {
+          addLog('❌ tam-card is not loaded yet', 'error');
+          return;
+        }
+
         addLog('🎨 Attempting to render tam-card...', 'info');
         
         const container = document.getElementById('card-container');
@@ -258,7 +267,7 @@
         // Create the tam-card element
         const card = document.createElement('tam-card');
         
-        // Set config
+        // Set config first
         const config = {
           type: 'custom:tam-card',
           stop: 'ALBERT 1ER',
@@ -267,19 +276,26 @@
         
         addLog(`Setting card config: stop=${config.stop}, direction=${config.direction}`, 'info');
         
-        // Set the hass property
+        // Set the hass property BEFORE calling setConfig
         card.hass = mockHass;
+        addLog('✅ hass property set', 'success');
         
-        // Call setConfig
-        if (typeof card.setConfig === 'function') {
-          card.setConfig(config);
-          addLog('✅ Card config set', 'success');
-        } else {
-          addLog('⚠️ setConfig method not found', 'warn');
-        }
-
+        // Append to DOM first
         container.appendChild(card);
         addLog('✅ Card appended to DOM', 'success');
+
+        // Now call setConfig
+        if (typeof card.setConfig === 'function') {
+          addLog('⏳ Calling setConfig...', 'info');
+          card.setConfig(config).then(() => {
+            addLog('✅ setConfig completed', 'success');
+          }).catch(err => {
+            addLog(`❌ setConfig error: ${err.message}`, 'error');
+          });
+        } else {
+          addLog('❌ setConfig method not found on element', 'error');
+          addLog('Available methods: ' + Object.getOwnPropertyNames(Object.getPrototypeOf(card)).join(', '), 'info');
+        }
 
       } catch (e) {
         addLog(`❌ Error rendering card: ${e.message}`, 'error');
