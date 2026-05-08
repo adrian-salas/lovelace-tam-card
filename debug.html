@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TAM Card Debug</title>
+  <script src="https://unpkg.com/lit-element@2"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .debug-section {
+      background: white;
+      padding: 15px;
+      margin: 10px 0;
+      border-radius: 8px;
+      border-left: 4px solid #2196F3;
+    }
+    .error {
+      border-left-color: #f44336;
+      color: #f44336;
+    }
+    .success {
+      border-left-color: #4CAF50;
+      color: #4CAF50;
+    }
+    h2 {
+      margin-top: 0;
+      color: #333;
+    }
+    #console {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      padding: 15px;
+      border-radius: 8px;
+      font-family: monospace;
+      max-height: 400px;
+      overflow-y: auto;
+      margin: 10px 0;
+    }
+    .log-entry {
+      margin: 5px 0;
+      padding: 5px;
+      border-bottom: 1px solid #333;
+    }
+    .log-error {
+      color: #f48771;
+    }
+    .log-success {
+      color: #89d185;
+    }
+    .log-info {
+      color: #9cdcfe;
+    }
+    button {
+      padding: 10px 20px;
+      background: #2196F3;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      margin: 5px;
+    }
+    button:hover {
+      background: #1976D2;
+    }
+    .card-container {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      margin: 20px 0;
+    }
+  </style>
+</head>
+<body>
+  <h1>🚊 TAM Card Debug Console</h1>
+
+  <div class="debug-section">
+    <h2>1️⃣ Loading Status</h2>
+    <div id="load-status">Initializing...</div>
+  </div>
+
+  <div class="debug-section">
+    <h2>2️⃣ Proxy Server Test</h2>
+    <button id="test-proxy-btn">Test Proxy Server</button>
+    <button id="test-api-btn">Test TAM CSV API</button>
+    <div id="api-result" style="margin-top: 10px;"></div>
+  </div>
+
+  <div class="debug-section">
+    <h2>3️⃣ Card Render Test</h2>
+    <div class="card-container" id="card-container">
+      Loading card...
+    </div>
+  </div>
+
+  <div class="debug-section">
+    <h2>4️⃣ Console Log</h2>
+    <div id="console"></div>
+  </div>
+
+  <script>
+    const consoleDiv = document.getElementById('console');
+    const originalLog = console.log;
+    const originalError = console.error;
+
+    function addLog(message, type = 'info') {
+      const entry = document.createElement('div');
+      entry.className = `log-entry log-${type}`;
+      entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+      consoleDiv.appendChild(entry);
+      consoleDiv.scrollTop = consoleDiv.scrollHeight;
+      originalLog(`[TAM-DEBUG] ${message}`);
+    }
+
+    console.log = (...args) => addLog(args.join(' '), 'info');
+    console.error = (...args) => addLog(args.join(' '), 'error');
+
+    // Load the card and test
+    async function init() {
+      try {
+        addLog('📦 Loading tam-card.js...', 'info');
+        
+        // Wait for the script to load
+        const script = document.createElement('script');
+        script.src = 'http://localhost:5000/tam-card.js';
+        
+        script.onerror = () => {
+          addLog('❌ Failed to load tam-card.js', 'error');
+          document.getElementById('load-status').innerHTML = '<span class="error">❌ Failed to load tam-card.js - Is npm start running on port 5000?</span>';
+        };
+
+        script.onload = async () => {
+          addLog('✅ tam-card.js loaded successfully', 'success');
+          document.getElementById('load-status').innerHTML = '<span class="success">✅ tam-card.js loaded</span>';
+          
+          // Now test data loading
+          await testDataLoading();
+        };
+
+        document.head.appendChild(script);
+      } catch (e) {
+        addLog(`Error: ${e.message}`, 'error');
+      }
+    }
+
+    async function testDataLoading() {
+      try {
+        addLog('📊 Testing CSV data loading...', 'info');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      } catch (e) {
+        addLog(`Error: ${e.message}`, 'error');
+      }
+    }
+
+    async function testProxyServer() {
+      try {
+        addLog('🌐 Testing proxy server health...', 'info');
+        const response = await fetch('http://localhost:3001/health', {
+          mode: 'cors',
+        });
+        
+        if (!response.ok) {
+          addLog(`❌ Proxy Error: ${response.status} ${response.statusText}`, 'error');
+          document.getElementById('api-result').innerHTML = `<span class="error">Proxy Error: ${response.status} ${response.statusText}</span>`;
+          return;
+        }
+        
+        const data = await response.json();
+        addLog('✅ Proxy server is running!', 'success');
+        document.getElementById('api-result').innerHTML = `<span class="success">✅ Proxy server is healthy!</span>`;
+      } catch (e) {
+        addLog(`❌ Proxy Error: ${e.message}`, 'error');
+        document.getElementById('api-result').innerHTML = `<span class="error">❌ Proxy Error: ${e.message} - Is node server.js running on port 3001?</span>`;
+      }
+    }
+
+    async function testTamCsvApi() {
+      try {
+        addLog('🌐 Testing TAM CSV API via proxy...', 'info');
+        const response = await fetch('http://localhost:3001/api/tam-csv', {
+          mode: 'cors',
+          headers: {
+            'Accept': 'text/csv',
+          },
+        });
+        
+        if (!response.ok) {
+          addLog(`❌ API Error: ${response.status} ${response.statusText}`, 'error');
+          document.getElementById('api-result').innerHTML = `<span class="error">API Error: ${response.status} ${response.statusText}</span>`;
+          return;
+        }
+        
+        addLog('✅ TAM CSV API is reachable!', 'success');
+        const csvText = await response.text();
+        const lines = csvText.trim().split('\n');
+        addLog(`✅ Received CSV data: ${lines.length} lines`, 'success');
+        addLog(`Sample header: ${lines[0]}`, 'info');
+        addLog(`Sample row: ${lines[1]}`, 'info');
+        document.getElementById('api-result').innerHTML = `<span class="success">✅ API working! CSV Data received: ${lines.length} lines</span>`;
+      } catch (e) {
+        addLog(`❌ API Error: ${e.message}`, 'error');
+        document.getElementById('api-result').innerHTML = `<span class="error">API Error: ${e.message}</span>`;
+      }
+    }
+
+    document.getElementById('test-proxy-btn').addEventListener('click', testProxyServer);
+    document.getElementById('test-api-btn').addEventListener('click', testTamCsvApi);
+
+    addLog('🚀 Initializing TAM Card Debugger...', 'info');
+    init();
+  </script>
+</body>
+</html>
