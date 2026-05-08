@@ -69,11 +69,16 @@
     button:hover {
       background: #1976D2;
     }
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
     .card-container {
       background: white;
       padding: 20px;
       border-radius: 8px;
       margin: 20px 0;
+      min-height: 100px;
     }
     tam-card {
       display: block;
@@ -96,14 +101,14 @@
     <h2>2️⃣ Tests</h2>
     <button id="test-proxy-btn">Test Proxy Server</button>
     <button id="test-api-btn">Test TAM CSV API</button>
-    <button id="render-card-btn">Render Card</button>
+    <button id="render-card-btn" disabled>Render Card (Waiting...)</button>
     <div id="api-result" style="margin-top: 10px;"></div>
   </div>
 
   <div class="debug-section">
     <h2>3️⃣ Card Render Test</h2>
     <div class="card-container" id="card-container">
-      Click "Render Card" to test the card display
+      Waiting for tam-card to load...
     </div>
   </div>
 
@@ -179,16 +184,23 @@
           addLog('✅ tam-card.js loaded successfully', 'success');
           document.getElementById('load-status').innerHTML = '<span class="success">✅ tam-card.js loaded</span>';
           
-          // Wait for custom element to be registered
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          // Wait longer for custom element to be registered and all dependencies to load
+          addLog('⏳ Waiting 3 seconds for custom element registration...', 'info');
+          await new Promise(resolve => setTimeout(resolve, 3000));
           
           try {
             // Check if tam-card is registered
             if (customElements.get('tam-card')) {
-              addLog('✅ tam-card custom element registered', 'success');
+              addLog('✅ tam-card custom element registered!', 'success');
               tamCardLoaded = true;
+              
+              // Enable render button
+              document.getElementById('render-card-btn').disabled = false;
+              document.getElementById('render-card-btn').textContent = 'Render Card';
+              document.getElementById('card-container').innerHTML = 'Ready! Click "Render Card" above.';
             } else {
-              addLog('⚠️ tam-card custom element not found', 'warn');
+              addLog('❌ tam-card custom element not registered after 3 seconds', 'error');
+              addLog('Available custom elements: ' + Array.from(customElements.keys() || []).join(', '), 'info');
             }
           } catch (e) {
             addLog(`⚠️ Error checking element: ${e.message}`, 'warn');
@@ -255,7 +267,7 @@
     function renderCard() {
       try {
         if (!tamCardLoaded) {
-          addLog('❌ tam-card is not loaded yet', 'error');
+          addLog('❌ tam-card is not loaded yet. Wait for the "tam-card custom element registered" message.', 'error');
           return;
         }
 
