@@ -1,4 +1,3 @@
-import GtfsRealtimeBindings from 'gtfs-realtime-bindings';
 import { AllDataTypes } from './types';
 import ALLDATA from './merged_data.json';
 
@@ -51,6 +50,7 @@ function searchStopAndDirection(stopName, direction): any {
 				route_id: item.route_id,
 				trip_headsign: item.trip_headsign,
 				stop_name: item.stop_name,
+				route_short_name: item.route_short_name,
 			});
 		}
 	});
@@ -58,74 +58,110 @@ function searchStopAndDirection(stopName, direction): any {
 	return results;
 }
 
-export async function findData(direction): Promise<any> {
-	if (direction === undefined || direction.length === 0 || direction === null) return null;
-	const response = await fetch(
-		'https://cors-proxy-tam.herokuapp.com/https://data.montpellier3m.fr/TAM_MMM_GTFSRT/TripUpdate.pb',
-		{
-			mode: 'cors',
-			headers: {
-				'Access-Control-Allow-Origin': '*',
-			},
-		},
-	);
-	if (!response.ok) {
-		const error = new Error(`${response.url}: ${response.status} ${response.statusText}`);
-		error['response'] = response;
-		throw error;
-	}
-	const buffer = await response.arrayBuffer();
-	const feed = GtfsRealtimeBindings.transit_realtime.FeedMessage.decode(new Uint8Array(buffer));
-	const data: any = [];
-	feed.entity.forEach(entity => {
-		if (entity.tripUpdate) {
-			if (entity.tripUpdate.trip.routeId === direction.route_id) {
-				if (entity.tripUpdate.stopTimeUpdate) {
-					entity.tripUpdate.stopTimeUpdate.forEach(stop => {
-						if (direction.stop_id === stop.stopId) {
-							if (stop.arrival && stop.arrival.time) {
-								if (typeof stop.arrival.time === 'number' && stop.arrival.time > Date.now() / 1000) {
-									if (entity.tripUpdate && entity.tripUpdate.trip) {
-										const trip = showTrip(entity.tripUpdate.trip);
-										if (trip === direction.trip_headsign) {
-											data.push({
-												trip: trip,
-												departure_time: timestampToTime(stop.arrival),
-											});
-										}
-									}
-								}
-							}
-						}
-					});
-				}
-			}
-		}
-	});
-	const parsedObject: any = [];
-
-	for (const item of data) {
-		parsedObject.push({
-			trip_headsign: item.trip,
-			departure_time: item.departure_time,
-			route_short_name: direction.route_id.split('-')[1],
-			stop_name: direction.stop_name,
-		});
-	}
-
-	parsedObject.sort((a, b) => a.departure_time.localeCompare(b.departure_time));
-	return parsedObject;
-}
-
 function toPascalCase(str): any {
 	return str.toLowerCase().replace(/\b\w/g, char => char.toUpperCase());
 }
 
-export async function getData(stopName, direction): Promise<any> {
-	let obj = await searchStopAndDirection(stopName, direction);
-	if (obj.length === 0) {
-		const new_stopName = toPascalCase(stopName);
-		obj = await searchStopAndDirection(new_stopName, direction);
+// Parse CSV string to array of objects
+function parseCSV(csvText: string): any[] {
+	const lines = csvText.trim().split('\n');
+	if (lines.length < 2) {
+		console.error('CSV file is empty or invalid');
+		return [];
 	}
-	return await findData(obj[0]);
+
+	const headers = lines[0].split(';');
+	const data: any[] = [];
+
+	for (let i = 1; i < lines.length; i++) {
+		const values = lines[i].split(';');
+		const row: any = {};
+
+		headers.forEach((header, index) => {
+			row[header.trim()] = values[index] ? values[index].trim() : '';
+		});
+
+		data.push(row);
+	}
+
+	return data;
+}
+
+// Fetch data from TAM CSV API
+export async function findData(direction): Promise<any> {
+	if (direction === undefined || direction.length === 0 || direction === null) return null;
+
+	try {
+		console.log('Fetching TAM CSV data from:', 'https://data.montpellier3m.fr/sites/default/files/ressources/TAM_MMM_TpsReel.csv');
+		
+		const response = await fetch(
+			'https://data.montpellier3m.fr/sites/default/files/ressources/TAM_MMM_TpsReel.csv',
+			{
+				mode: 'cors',
+				headers: {
+					'Accept': 'text/csv',
+				},
+			},
+		);
+
+		if (!response.ok) {
+			const error = new Error(`${response.url}: ${response.status} ${response.statusText}`);
+			error['response'] = response;
+			console.error('API Error:', error);
+			throw error;
+		}
+
+		const csvText = await response.text();
+		const csvData = parseCSV(csvText);
+
+		console.log(`Parsed ${csvData.length} records from CSV`);
+
+		// Filter data by stop_id and route_short_name and trip_headsign
+		const filteredData = csvData.filter(row => {
+			return (
+				row.stop_id === direction.stop_id &&
+				row.route_short_name === direction.route_short_name &&
+				row.trip_headsign === direction.trip_headsign
+			);
+		});
+
+		console.log(`Found ${filteredData.length} matching records`);
+
+		// Sort by departure_time and format response
+		const parsedObject: any = filteredData
+			.map(row => ({
+				trip_headsign: row.trip_headsign,
+				departure_time: row.departure_time,
+				route_short_name: row.route_short_name,
+				stop_name: row.stop_name,
+			}))
+			.sort((a, b) => a.departure_time.localeCompare(b.departure_time));
+
+		console.log('Returning data:', parsedObject);
+		return parsedObject;
+	} catch (error) {
+		console.error('Error fetching or parsing CSV:', error);
+		return [];
+	}
+}
+
+export async function getData(stopName, direction): Promise<any> {
+	try {
+		let obj = await searchStopAndDirection(stopName, direction);
+		if (obj.length === 0) {
+			const new_stopName = toPascalCase(stopName);
+			obj = await searchStopAndDirection(new_stopName, direction);
+		}
+
+		if (obj.length === 0) {
+			console.warn(`No matching stop/direction found: ${stopName} / ${direction}`);
+			return [];
+		}
+
+		console.log('Searching for direction config:', obj[0]);
+		return await findData(obj[0]);
+	} catch (error) {
+		console.error('Error in getData:', error);
+		return [];
+	}
 }
