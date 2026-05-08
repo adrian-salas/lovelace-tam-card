@@ -54,6 +54,9 @@
     .log-info {
       color: #9cdcfe;
     }
+    .log-warn {
+      color: #ff9800;
+    }
     button {
       padding: 10px 20px;
       background: #2196F3;
@@ -72,6 +75,13 @@
       border-radius: 8px;
       margin: 20px 0;
     }
+    tam-card {
+      display: block;
+      margin: 20px 0;
+    }
+    ha-card {
+      display: block;
+    }
   </style>
 </head>
 <body>
@@ -83,16 +93,17 @@
   </div>
 
   <div class="debug-section">
-    <h2>2️⃣ Proxy Server Test</h2>
+    <h2>2️⃣ Tests</h2>
     <button id="test-proxy-btn">Test Proxy Server</button>
     <button id="test-api-btn">Test TAM CSV API</button>
+    <button id="render-card-btn">Render Card</button>
     <div id="api-result" style="margin-top: 10px;"></div>
   </div>
 
   <div class="debug-section">
     <h2>3️⃣ Card Render Test</h2>
     <div class="card-container" id="card-container">
-      Loading card...
+      Click "Render Card" to test the card display
     </div>
   </div>
 
@@ -105,6 +116,7 @@
     const consoleDiv = document.getElementById('console');
     const originalLog = console.log;
     const originalError = console.error;
+    const originalWarn = console.warn;
 
     function addLog(message, type = 'info') {
       const entry = document.createElement('div');
@@ -117,13 +129,45 @@
 
     console.log = (...args) => addLog(args.join(' '), 'info');
     console.error = (...args) => addLog(args.join(' '), 'error');
+    console.warn = (...args) => addLog(args.join(' '), 'warn');
+
+    // Mock Home Assistant object
+    const mockHass = {
+      states: {},
+      entities: {},
+      devices: {},
+      areas: {},
+      services: {},
+      config: {
+        latitude: 43.61,
+        longitude: 3.88,
+        elevation: 50,
+        unit_system: {
+          length: 'km',
+          mass: 'kg',
+          temperature: '°C',
+          volume: 'L',
+        },
+        time_zone: 'Europe/Paris',
+        components: [],
+        version: '2023.1.0',
+      },
+      localize: () => '',
+      locale: {
+        language: 'fr',
+        country: 'FR',
+      },
+      call_service: () => {},
+    };
 
     // Load the card and test
     async function init() {
       try {
         addLog('📦 Loading tam-card.js...', 'info');
         
-        // Wait for the script to load
+        // Mock Home Assistant globally
+        window.customElements = window.customElements || {};
+        
         const script = document.createElement('script');
         script.src = 'http://localhost:5000/tam-card.js';
         
@@ -136,20 +180,18 @@
           addLog('✅ tam-card.js loaded successfully', 'success');
           document.getElementById('load-status').innerHTML = '<span class="success">✅ tam-card.js loaded</span>';
           
-          // Now test data loading
-          await testDataLoading();
+          // Wait a bit for custom element to be registered
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          try {
+            const tamCardElement = document.createElement('tam-card');
+            addLog('✅ tam-card custom element created', 'success');
+          } catch (e) {
+            addLog(`⚠️ Error creating tam-card: ${e.message}`, 'warn');
+          }
         };
 
         document.head.appendChild(script);
-      } catch (e) {
-        addLog(`Error: ${e.message}`, 'error');
-      }
-    }
-
-    async function testDataLoading() {
-      try {
-        addLog('📊 Testing CSV data loading...', 'info');
-        await new Promise(resolve => setTimeout(resolve, 1000));
       } catch (e) {
         addLog(`Error: ${e.message}`, 'error');
       }
@@ -206,8 +248,49 @@
       }
     }
 
+    function renderCard() {
+      try {
+        addLog('🎨 Attempting to render tam-card...', 'info');
+        
+        const container = document.getElementById('card-container');
+        container.innerHTML = '';
+
+        // Create the tam-card element
+        const card = document.createElement('tam-card');
+        
+        // Set config
+        const config = {
+          type: 'custom:tam-card',
+          stop: 'ALBERT 1ER',
+          direction: 'GARE SUD FRANCE',
+        };
+        
+        addLog(`Setting card config: stop=${config.stop}, direction=${config.direction}`, 'info');
+        
+        // Set the hass property
+        card.hass = mockHass;
+        
+        // Call setConfig
+        if (typeof card.setConfig === 'function') {
+          card.setConfig(config);
+          addLog('✅ Card config set', 'success');
+        } else {
+          addLog('⚠️ setConfig method not found', 'warn');
+        }
+
+        container.appendChild(card);
+        addLog('✅ Card appended to DOM', 'success');
+
+      } catch (e) {
+        addLog(`❌ Error rendering card: ${e.message}`, 'error');
+        addLog(`Stack: ${e.stack}`, 'error');
+        document.getElementById('card-container').innerHTML = `<span class="error">Error: ${e.message}</span>`;
+      }
+    }
+
     document.getElementById('test-proxy-btn').addEventListener('click', testProxyServer);
     document.getElementById('test-api-btn').addEventListener('click', testTamCsvApi);
+    document.getElementById('render-card-btn').addEventListener('click', renderCard);
 
     addLog('🚀 Initializing TAM Card Debugger...', 'info');
     init();
