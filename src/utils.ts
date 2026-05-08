@@ -87,22 +87,20 @@ function parseCSV(csvText: string): any[] {
 	return data;
 }
 
-// Fetch data from TAM CSV API
+// Fetch data from TAM CSV API via local proxy
 export async function findData(direction): Promise<any> {
 	if (direction === undefined || direction.length === 0 || direction === null) return null;
 
 	try {
-		console.log('Fetching TAM CSV data from:', 'https://data.montpellier3m.fr/sites/default/files/ressources/TAM_MMM_TpsReel.csv');
+		const proxyUrl = 'http://localhost:3001/api/tam-csv';
+		console.log('Fetching TAM CSV data from proxy:', proxyUrl);
 		
-		const response = await fetch(
-			'https://data.montpellier3m.fr/sites/default/files/ressources/TAM_MMM_TpsReel.csv',
-			{
-				mode: 'cors',
-				headers: {
-					'Accept': 'text/csv',
-				},
+		const response = await fetch(proxyUrl, {
+			mode: 'cors',
+			headers: {
+				'Accept': 'text/csv',
 			},
-		);
+		});
 
 		if (!response.ok) {
 			const error = new Error(`${response.url}: ${response.status} ${response.statusText}`);
