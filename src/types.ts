@@ -8,6 +8,7 @@ export interface TamCardConfig {
 
 export interface AllDataTypes {
 	route_id: string;
+	route_short_name: string;
 	trip_id: Array<string>;
 	stop_name: string;
 	trip_headsign: string;
