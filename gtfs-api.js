@@ -201,7 +201,8 @@ app.get('/api/stops/:stopId/directions', (req, res) => {
  */
 app.get('/api/departures', async (req, res) => {
   try {
-    const { stopId, stopName, direction } = req.query;
+    const { stopId, stopName, direction, debug } = req.query;
+    const debugMode = debug === 'true';
     
     if (!stopId && !stopName) {
       return res.status(400).json({
@@ -214,9 +215,26 @@ app.get('/api/departures', async (req, res) => {
 
     // Find stop if only name provided
     let actualStopId = stopId;
+    let stop = null;
+    
     if (!stopId && stopName) {
-      const stop = gtfsData.stops.find(s => s.stop_name.toLowerCase() === stopName.toLowerCase());
+      stop = gtfsData.stops.find(s => s.stop_name.toLowerCase() === stopName.toLowerCase());
       if (!stop) {
+        // Debug: show available stops
+        if (debugMode) {
+          const available = gtfsData.stops
+            .filter(s => s.stop_name.toLowerCase().includes(stopName.toLowerCase()))
+            .map(s => s.stop_name);
+          return res.status(404).json({
+            status: 'error',
+            message: `Stop "${stopName}" not found`,
+            debug: {
+              searched_for: stopName,
+              similar_stops: available.slice(0, 10),
+              total_stops: gtfsData.stops.length,
+            }
+          });
+        }
         return res.status(404).json({
           status: 'error',
           message: `Stop "${stopName}" not found`,
@@ -228,14 +246,24 @@ app.get('/api/departures', async (req, res) => {
     // Get stop times for this stop
     const stopTimes = gtfsData.stopTimes[actualStopId] || [];
     
+    if (debugMode) {
+      console.log(`\n🔍 DEBUG: Stop "${stopName || stopId}"`);
+      console.log(`   Stop ID: ${actualStopId}`);
+      console.log(`   Stop times available: ${stopTimes.length}`);
+      console.log(`   Direction filter: ${direction || 'none'}`);
+    }
+    
     const departures = [];
     const now = moment().tz('Europe/Paris');
     
-    stopTimes.forEach(st => {
+    stopTimes.forEach((st, idx) => {
       const trip = gtfsData.trips[st.trip_id];
-      if (!trip) return;
+      if (!trip) {
+        if (debugMode && idx < 3) console.log(`   ⚠️  Trip ${st.trip_id} not found`);
+        return;
+      }
       
-      // Filter by direction if provided
+      // Filter by direction if provided (case-insensitive)
       if (direction && trip.trip_headsign.toLowerCase() !== direction.toLowerCase()) {
         return;
       }
@@ -276,12 +304,28 @@ app.get('/api/departures', async (req, res) => {
     // Sort by departure time and limit to next 5
     departures.sort((a, b) => a.minutes_until_departure - b.minutes_until_departure);
     
+    if (debugMode) {
+      console.log(`   ✅ Found ${departures.length} future departures`);
+      if (departures.length > 0) {
+        console.log(`   Next: ${departures[0].trip_headsign} in ${departures[0].minutes_until_departure}m`);
+      }
+    }
+    
     res.json({
       status: 'success',
       stop_id: actualStopId,
+      stop_name: stop?.stop_name || 'unknown',
       direction: direction || 'all',
       count: departures.length,
       data: departures.slice(0, 5),
+      ...(debugMode && {
+        debug: {
+          total_stop_times: stopTimes.length,
+          filtered_departures: departures.length,
+          csv_records: csvCache.length,
+          current_time: now.format('HH:mm:ss'),
+        }
+      })
     });
   } catch (error) {
     console.error('Error in /api/departures:', error);
@@ -323,7 +367,7 @@ async function start() {
       console.log(`📡 Endpoints:`);
       console.log(`   GET /api/stops`);
       console.log(`   GET /api/stops/:stopId/directions`);
-      console.log(`   GET /api/departures?stopId=X&direction=Y`);
+      console.log(`   GET /api/departures?stopName=X&direction=Y&debug=true`);
       console.log(`   GET /health`);
     });
   } catch (error) {
