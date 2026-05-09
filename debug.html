@@ -212,8 +212,8 @@
               }
               
               // Check for errors in tam-card.js by checking window
-              if ((window as any).customCards) {
-                addLog(`✅ customCards registered: ${(window as any).customCards.map(c => c.type).join(', ')}`, 'info');
+              if (window.customCards) {
+                addLog(`✅ customCards registered: ${window.customCards.map(c => c.type).join(', ')}`, 'info');
               }
             }
           } catch (e) {
