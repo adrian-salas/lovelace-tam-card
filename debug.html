@@ -175,8 +175,8 @@
         const script = document.createElement('script');
         script.src = 'http://localhost:5000/tam-card.js';
         
-        script.onerror = () => {
-          addLog('❌ Failed to load tam-card.js', 'error');
+        script.onerror = (error) => {
+          addLog(`❌ Failed to load tam-card.js: ${error}`, 'error');
           document.getElementById('load-status').innerHTML = '<span class="error">❌ Failed to load tam-card.js - Is npm start running on port 5000?</span>';
         };
 
@@ -185,13 +185,15 @@
           document.getElementById('load-status').innerHTML = '<span class="success">✅ tam-card.js loaded</span>';
           
           // Wait longer for custom element to be registered and all dependencies to load
-          addLog('⏳ Waiting 3 seconds for custom element registration...', 'info');
-          await new Promise(resolve => setTimeout(resolve, 3000));
+          addLog('⏳ Waiting 2 seconds for custom element registration...', 'info');
+          await new Promise(resolve => setTimeout(resolve, 2000));
           
           try {
             // Check if tam-card is registered
-            if (customElements.get('tam-card')) {
+            const tamCardElement = customElements.get('tam-card');
+            if (tamCardElement) {
               addLog('✅ tam-card custom element registered!', 'success');
+              addLog(`Element class: ${tamCardElement.name}`, 'info');
               tamCardLoaded = true;
               
               // Enable render button
@@ -199,11 +201,24 @@
               document.getElementById('render-card-btn').textContent = 'Render Card';
               document.getElementById('card-container').innerHTML = 'Ready! Click "Render Card" above.';
             } else {
-              addLog('❌ tam-card custom element not registered after 3 seconds', 'error');
-              addLog('Available custom elements: ' + Array.from(customElements.keys() || []).join(', '), 'info');
+              addLog('❌ tam-card custom element not registered after 2 seconds', 'error');
+              
+              // Try to debug - list all registered elements
+              try {
+                const keys = Array.from(customElements).map(el => el.name || el.toString());
+                addLog(`Available custom elements: ${keys.join(', ')}`, 'info');
+              } catch (e) {
+                addLog('Could not enumerate custom elements', 'warn');
+              }
+              
+              // Check for errors in tam-card.js by checking window
+              if ((window as any).customCards) {
+                addLog(`✅ customCards registered: ${(window as any).customCards.map(c => c.type).join(', ')}`, 'info');
+              }
             }
           } catch (e) {
             addLog(`⚠️ Error checking element: ${e.message}`, 'warn');
+            addLog(`Stack: ${e.stack}`, 'error');
           }
         };
 
@@ -303,6 +318,7 @@
             addLog('✅ setConfig completed', 'success');
           }).catch(err => {
             addLog(`❌ setConfig error: ${err.message}`, 'error');
+            addLog(`Stack: ${err.stack}`, 'error');
           });
         } else {
           addLog('❌ setConfig method not found on element', 'error');
