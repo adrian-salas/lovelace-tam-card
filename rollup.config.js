@@ -34,8 +34,8 @@ export default [
   {
     input: 'src/tam-card.ts',
     output: {
-      dir: 'dist',
-      format: 'es',
+      file: 'dist/tam-card.js',
+      format: 'iife',
     },
     plugins: [...plugins],
   },
