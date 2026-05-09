@@ -23,16 +23,15 @@ const plugins = [
     preferBuiltins: false,
   }),
   commonjs(),
-  typescript({
-    tsconfig: false,
-    compilerOptions: {
-      target: 'es5',
-      module: 'es2015',
-    },
+  typescript(),
+  json({
+    preferConst: true,
   }),
-  json(),
   babel({
     exclude: 'node_modules/**',
+    presets: [
+      ['@babel/preset-env', { modules: false }]
+    ]
   }),
   dev && serve(serveopts),
   !dev && terser(),
@@ -43,15 +42,10 @@ export default [
     input: 'src/tam-card.ts',
     output: {
       file: 'dist/tam-card.js',
-      format: 'umd',
-      name: 'TamCard',
-      globals: {
-        'lit-element': 'litElement',
-        'custom-card-helpers': 'customCardHelpers',
-        'moment-timezone': 'moment',
-      },
+      format: 'es',
+      sourcemap: dev,
     },
-    external: ['lit-element', 'custom-card-helpers'],
+    external: [],
     plugins: [...plugins],
   },
 ];
