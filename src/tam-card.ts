@@ -31,7 +31,7 @@ export class TamCard extends LitElement {
 	@property() public hass?: HomeAssistant;
 	@property() private _config?: TamCardConfig;
 	@property() private waitFetch = false;
-	@property() private fetchedData: any = null;
+	@property() private fetchedData: Record<string, Record<string, unknown>> | null = null;
 
 	public async setConfig(config: TamCardConfig): Promise<void> {
 		if (!config) {
@@ -45,7 +45,8 @@ export class TamCard extends LitElement {
 			...config,
 		};
 	}
-	protected timeConvert(n, nb): string {
+
+	protected timeConvert(n: number, nb: number): string {
 		const num = n;
 		const hours = num / 60;
 		const rhours = Math.floor(hours);
@@ -56,11 +57,11 @@ export class TamCard extends LitElement {
 		else return rminutes + ' min';
 	}
 
-	protected sleep(ms): unknown {
+	protected sleep(ms: number): Promise<void> {
 		return new Promise(resolve => setTimeout(resolve, ms));
 	}
 
-	protected checkBackgroundColor(number): string {
+	protected checkBackgroundColor(number: string | number): string {
 		if (this._config?.backgroundColor) {
 			if (this._config?.backgroundColor !== 'auto')
 				return validateColor(this._config?.backgroundColor) ? this._config?.backgroundColor : color[number];
@@ -68,7 +69,7 @@ export class TamCard extends LitElement {
 		return color[number];
 	}
 
-	protected checkTextColor(defaultColor): string {
+	protected checkTextColor(defaultColor: string): string {
 		if (this._config?.textColor) {
 			if (this._config?.textColor !== 'auto')
 				return validateColor(this._config?.textColor) ? this._config?.textColor : defaultColor;
@@ -76,8 +77,8 @@ export class TamCard extends LitElement {
 		return defaultColor;
 	}
 
-	protected parseCourseTam(result: Passage[], stopName: string, direction: string): object {
-		const res = {};
+	protected parseCourseTam(result: Passage[], stopName: string, direction: string): Record<string, unknown> {
+		const res: Record<string, unknown> = {};
 		const time = parsePassageData(result);
 
 		if (result.length === 0) {
@@ -99,7 +100,11 @@ export class TamCard extends LitElement {
 		return res;
 	}
 
-	protected async fetchPassagesWithRetry(stopName: string, direction: string, retries = 2): Promise<Passage[]> {
+	protected async fetchPassagesWithRetry(
+		stopName: string,
+		direction: string,
+		retries = 2,
+	): Promise<Passage[]> {
 		let attempts = 0;
 		const apiHost = normalizeApiHost(this._config?.api_host || this._config?.apiHost);
 		while (attempts <= retries) {
@@ -345,8 +350,8 @@ export class TamCard extends LitElement {
 }
 
 customElements.define('tam-card', TamCard);
-(window as any).customCards = (window as any).customCards || [];
-(window as any).customCards.push({
+(window as Record<string, unknown>).customCards = (window as Record<string, unknown>).customCards || [];
+((window as Record<string, unknown>).customCards as unknown[]).push({
 	type: 'tam-card',
 	name: 'TAM Montpellier',
 	preview: false,
