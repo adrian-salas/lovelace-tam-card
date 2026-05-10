@@ -51,7 +51,7 @@ export class TamCardEditor extends LitElement implements LovelaceCardEditor {
 
 	get _apiHost(): string {
 		if (this._config) {
-			return this._config.api_host || this._config.apiHost || '';
+			return this._config.api_host || '';
 		}
 		return '';
 	}
@@ -66,7 +66,7 @@ export class TamCardEditor extends LitElement implements LovelaceCardEditor {
 			this.stops = await fetchStops(this._apiHost);
 		} catch (error) {
 			this.stops = [];
-			this.loadingError = 'Impossible de charger les arrêts depuis l’API';
+			this.loadingError = 'Impossible de charger les arrêts depuis l'API';
 			console.error(error);
 		} finally {
 			this.loadingStops = false;
@@ -86,7 +86,7 @@ export class TamCardEditor extends LitElement implements LovelaceCardEditor {
 			this.directions = [...new Set(directions)].sort();
 		} catch (error) {
 			this.directions = [];
-			this.loadingError = 'Impossible de charger les directions depuis l’API';
+			this.loadingError = 'Impossible de charger les directions depuis l'API';
 			console.error(error);
 		} finally {
 			this.loadingDirections = false;
@@ -217,9 +217,6 @@ export class TamCardEditor extends LitElement implements LovelaceCardEditor {
 		}
 
 		if (target.configValue === 'api_host') {
-			if (this._config.apiHost) {
-				delete this._config.apiHost;
-			}
 			this._config.api_host = normalizeApiHost(this._config.api_host);
 			this._config.stop = '';
 			this._config.direction = '';
