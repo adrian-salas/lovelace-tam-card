@@ -100,11 +100,7 @@ export class TamCard extends LitElement {
 		return res;
 	}
 
-	protected async fetchPassagesWithRetry(
-		stopName: string,
-		direction: string,
-		retries = 2,
-	): Promise<Passage[]> {
+	protected async fetchPassagesWithRetry(stopName: string, direction: string, retries = 2): Promise<Passage[]> {
 		let attempts = 0;
 		const apiHost = normalizeApiHost(this._config?.api_host);
 		while (attempts <= retries) {
