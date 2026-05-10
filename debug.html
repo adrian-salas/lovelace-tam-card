@@ -118,13 +118,6 @@
       border-radius: 4px;
       min-width: 200px;
     }
-    .info-box {
-      background: #e3f2fd;
-      border-left: 4px solid #2196F3;
-      padding: 10px;
-      margin: 10px 0;
-      border-radius: 4px;
-    }
   </style>
 </head>
 <body>
@@ -135,19 +128,6 @@
     <div class="api-config">
       <label for="api-host">API Host:</label>
       <input type="text" id="api-host" placeholder="e.g., http://localhost:8080" value="http://localhost:8080">
-      
-      <label for="use-cors-proxy" style="display: flex; align-items: center; margin-top: 10px;">
-        <input type="checkbox" id="use-cors-proxy" style="margin-right: 5px;">
-        Use CORS Proxy (for development/testing)
-      </label>
-      <div class="info-box">
-        ℹ️ If you're getting CORS errors, check these solutions:
-        <ul>
-          <li><strong>Option 1:</strong> Add CORS headers to your API server (recommended)</li>
-          <li><strong>Option 2:</strong> Enable "Use CORS Proxy" (for testing only)</li>
-        </ul>
-      </div>
-      
       <button id="save-config-btn">Save Configuration</button>
     </div>
   </div>
@@ -202,10 +182,7 @@
     const originalWarn = console.warn;
 
     let apiHost = localStorage.getItem('tamCardApiHost') || 'http://localhost:8080';
-    let useCorsProxy = localStorage.getItem('tamCardUseCorsProxy') === 'true';
-    
     document.getElementById('api-host').value = apiHost;
-    document.getElementById('use-cors-proxy').checked = useCorsProxy;
 
     function addLog(message, type = 'info') {
       const entry = document.createElement('div');
@@ -253,31 +230,15 @@
     let availableStops = [];
     let availableDirections = [];
 
-    // Build URL with optional CORS proxy
-    function buildUrl(endpoint) {
-      const url = `${apiHost}${endpoint}`;
-      if (useCorsProxy) {
-        return `https://cors-anywhere.herokuapp.com/${url}`;
-      }
-      return url;
-    }
-
     // Save API configuration
     document.getElementById('save-config-btn').addEventListener('click', () => {
       apiHost = document.getElementById('api-host').value;
-      useCorsProxy = document.getElementById('use-cors-proxy').checked;
-      
       if (!apiHost.trim()) {
         addLog('❌ API Host cannot be empty', 'error');
         return;
       }
-      
       localStorage.setItem('tamCardApiHost', apiHost);
-      localStorage.setItem('tamCardUseCorsProxy', useCorsProxy.toString());
-      
-      addLog(`✅ Configuration saved:`, 'success');
-      addLog(`   API Host: ${apiHost}`, 'info');
-      addLog(`   Use CORS Proxy: ${useCorsProxy}`, 'info');
+      addLog(`✅ API Host saved: ${apiHost}`, 'success');
     });
 
     // Load the card and test
@@ -316,8 +277,7 @@
     async function testStopsApi() {
       try {
         addLog('🌐 Testing /api/v1/realtime/stops...', 'info');
-        const endpoint = '/api/v1/realtime/stops';
-        const url = buildUrl(endpoint);
+        const url = `${apiHost}/api/v1/realtime/stops`;
         addLog(`📍 Requesting: ${url}`, 'info');
         
         const response = await fetch(url, {
@@ -362,8 +322,7 @@
         }
 
         addLog(`🌐 Testing /api/v1/realtime/passages for stop: ${stop}...`, 'info');
-        const endpoint = `/api/v1/realtime/passages?stop_name=${encodeURIComponent(stop)}&limit=5`;
-        const url = buildUrl(endpoint);
+        const url = `${apiHost}/api/v1/realtime/passages?stop_name=${encodeURIComponent(stop)}&limit=5`;
         addLog(`📍 Requesting: ${url}`, 'info');
         
         const response = await fetch(url, {
@@ -506,7 +465,6 @@
 
     addLog('🚀 Initializing TAM Card Debugger (API Version)...', 'info');
     addLog(`Using API Host: ${apiHost}`, 'info');
-    addLog(`CORS Proxy: ${useCorsProxy ? 'Enabled' : 'Disabled'}`, 'info');
     init();
   </script>
 </body>
