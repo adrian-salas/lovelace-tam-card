@@ -168,9 +168,7 @@ export class TamCard extends LitElement {
 			const time = result?.time as string[];
 			const proche = time?.[0] == 'Proche !!';
 			const noConversion =
-				time?.[0] == 'Proche !!' ||
-				time?.[0] == 'Indisponible' ||
-				time?.[0] == 'Fin de service';
+				time?.[0] == 'Proche !!' || time?.[0] == 'Indisponible' || time?.[0] == 'Fin de service';
 
 			if (time?.length > 1) {
 				return html`
@@ -234,9 +232,7 @@ export class TamCard extends LitElement {
 								</div>
 								<div class="text right flexAlign">
 									<div class="">
-										${noConversion
-											? time
-											: this.timeConvert(parseInt(time?.[0] as string, 10), 1)}
+										${noConversion ? time : this.timeConvert(parseInt(time?.[0] as string, 10), 1)}
 									</div>
 								</div>
 							</div>
@@ -346,8 +342,9 @@ export class TamCard extends LitElement {
 }
 
 customElements.define('tam-card', TamCard);
-(window as Record<string, unknown>).customCards = (window as Record<string, unknown>).customCards || [];
-((window as Record<string, unknown>).customCards as unknown[]).push({
+(window as unknown as Record<string, unknown>).customCards =
+	(window as unknown as Record<string, unknown>).customCards || [];
+((window as unknown as Record<string, unknown>).customCards as unknown[]).push({
 	type: 'tam-card',
 	name: 'TAM Montpellier',
 	preview: false,
