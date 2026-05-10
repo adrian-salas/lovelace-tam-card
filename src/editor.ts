@@ -2,20 +2,29 @@ import { LitElement, html, property, TemplateResult, CSSResult, css } from 'lit-
 import { HomeAssistant, fireEvent, LovelaceCardEditor } from 'custom-card-helpers';
 
 import { TamCardConfig } from './types';
-import { getAllStops, getTripHeadsign } from './utils';
+import { fetchPassages, fetchStops, normalizeApiHost } from './utils';
+
 export class TamCardEditor extends LitElement implements LovelaceCardEditor {
 	@property() public hass?: HomeAssistant;
 	@property() private _config?: TamCardConfig;
+	@property() private stops: string[] = [];
+	@property() private directions: string[] = [];
+	@property() private loadingStops = false;
+	@property() private loadingDirections = false;
+	@property() private loadingError?: string;
 
 	public async setConfig(config: TamCardConfig): Promise<void> {
 		this._config = config;
+		await this.loadStops();
+		if (this._config.stop) {
+			await this.loadDirections(this._config.stop);
+		}
 	}
 
 	get _stop(): string {
 		if (this._config) {
 			return this._config.stop || '';
 		}
-
 		return '';
 	}
 
@@ -23,7 +32,6 @@ export class TamCardEditor extends LitElement implements LovelaceCardEditor {
 		if (this._config) {
 			return this._config.direction || '';
 		}
-
 		return '';
 	}
 
@@ -31,7 +39,6 @@ export class TamCardEditor extends LitElement implements LovelaceCardEditor {
 		if (this._config) {
 			return this._config.backgroundColor || '';
 		}
-
 		return '';
 	}
 
@@ -39,8 +46,51 @@ export class TamCardEditor extends LitElement implements LovelaceCardEditor {
 		if (this._config) {
 			return this._config.textColor || '';
 		}
-
 		return '';
+	}
+
+	get _apiHost(): string {
+		if (this._config) {
+			return this._config.api_host || this._config.apiHost || '';
+		}
+		return '';
+	}
+
+	protected async loadStops(): Promise<void> {
+		if (!this._config) {
+			return;
+		}
+		this.loadingStops = true;
+		this.loadingError = undefined;
+		try {
+			this.stops = await fetchStops(this._apiHost);
+		} catch (error) {
+			this.stops = [];
+			this.loadingError = 'Impossible de charger les arrêts depuis l’API';
+			console.error(error);
+		} finally {
+			this.loadingStops = false;
+		}
+	}
+
+	protected async loadDirections(stopName: string): Promise<void> {
+		if (!stopName) {
+			this.directions = [];
+			return;
+		}
+		this.loadingDirections = true;
+		this.loadingError = undefined;
+		try {
+			const passages = await fetchPassages(this._apiHost, stopName, 50);
+			const directions = passages.map(passage => passage.trip_headsign).filter(direction => Boolean(direction));
+			this.directions = [...new Set(directions)].sort();
+		} catch (error) {
+			this.directions = [];
+			this.loadingError = 'Impossible de charger les directions depuis l’API';
+			console.error(error);
+		} finally {
+			this.loadingDirections = false;
+		}
 	}
 
 	protected render(): TemplateResult | void {
@@ -53,17 +103,18 @@ export class TamCardEditor extends LitElement implements LovelaceCardEditor {
 				</div>
 			`;
 		}
-		const allStop = getAllStops();
-		let direction;
-		if (this._config.stop) direction = getTripHeadsign(this._config.stop);
 
 		return html`
 			<div class="card-config">
 				<div class="description">
 					<p>
-						Si votre arrêt / direction n'est pas disponible après le chargement, réessayer ultérieurement de
-						préférence entre lundi et vendredi aux alentour de 12h.
+						Si votre arrêt / direction n'est pas disponible après le chargement, réessayer ultérieurement.
 					</p>
+					${this.loadingError
+						? html`
+								<p>${this.loadingError}</p>
+						  `
+						: html``}
 				</div>
 				<div class="option1">
 					<div class="values">
@@ -86,6 +137,16 @@ export class TamCardEditor extends LitElement implements LovelaceCardEditor {
 						>
 						</ha-textfield>
 					</div>
+					<div class="values">
+						<ha-textfield
+							label="API Host (optionnel)"
+							@input=${this._valueChanged}
+							.configValue=${'api_host'}
+							.value=${this._apiHost}
+							@closed=${(ev): void => ev.stopPropagation()}
+						>
+						</ha-textfield>
+					</div>
 				</div>
 				<div class="option2">
 					<div class="values">
@@ -96,11 +157,15 @@ export class TamCardEditor extends LitElement implements LovelaceCardEditor {
 							.value=${this._stop}
 							@closed=${(ev): void => ev.stopPropagation()}
 						>
-							${allStop.map(val => {
-								return html`
-									<mwc-list-item .value="${val}">${val}</mwc-list-item>
-								`;
-							})}
+							${this.loadingStops
+								? html`
+										<mwc-list-item .value=${''}>Chargement...</mwc-list-item>
+								  `
+								: this.stops.map(val => {
+										return html`
+											<mwc-list-item .value="${val}">${val}</mwc-list-item>
+										`;
+								  })}
 						</ha-select>
 					</div>
 					${this._config.stop
@@ -113,11 +178,15 @@ export class TamCardEditor extends LitElement implements LovelaceCardEditor {
 										.value=${this._direction}
 										@closed=${(ev): void => ev.stopPropagation()}
 									>
-										${direction.map(val => {
-											return html`
-												<mwc-list-item .value="${val}">${val}</mwc-list-item>
-											`;
-										})}
+										${this.loadingDirections
+											? html`
+													<mwc-list-item .value=${''}>Chargement...</mwc-list-item>
+											  `
+											: this.directions.map(val => {
+													return html`
+														<mwc-list-item .value="${val}">${val}</mwc-list-item>
+													`;
+											  })}
 									</ha-select>
 								</div>
 						  `
@@ -127,7 +196,7 @@ export class TamCardEditor extends LitElement implements LovelaceCardEditor {
 		`;
 	}
 
-	private _valueChanged(ev): void {
+	private async _valueChanged(ev): Promise<void> {
 		if (!this._config || !this.hass) {
 			return;
 		}
@@ -135,7 +204,7 @@ export class TamCardEditor extends LitElement implements LovelaceCardEditor {
 		if (this[`_${target.configValue}`] === target.value) {
 			return;
 		}
-		if (target.configValue == 'stop') this._config['direction'] = '';
+
 		if (target.configValue) {
 			if (target.value === '') {
 				delete this._config[target.configValue];
@@ -146,6 +215,25 @@ export class TamCardEditor extends LitElement implements LovelaceCardEditor {
 				};
 			}
 		}
+
+		if (target.configValue === 'api_host') {
+			if (this._config.apiHost) {
+				delete this._config.apiHost;
+			}
+			this._config.api_host = normalizeApiHost(this._config.api_host);
+			this._config.stop = '';
+			this._config.direction = '';
+			this.stops = [];
+			this.directions = [];
+			await this.loadStops();
+		}
+
+		if (target.configValue === 'stop') {
+			this._config.direction = '';
+			this.directions = [];
+			await this.loadDirections(target.value);
+		}
+
 		fireEvent(this, 'config-changed', { config: this._config });
 	}
 
@@ -160,6 +248,7 @@ export class TamCardEditor extends LitElement implements LovelaceCardEditor {
 				display: flex;
 				margin: auto;
 				height: auto;
+				flex-wrap: wrap;
 			}
 			.option2 {
 				display: flex;

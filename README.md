@@ -17,6 +17,7 @@ The APP get's [GTFS-RT data](https://data.montpellier3m.fr/dataset/offre-de-tran
 | direction 		|	string	|	**Required**	| Direction				| `LATTES CENTRE`	|
 | textColor			|	string	|	**NO**			| Text Color			| `auto` or ` ` 	|
 | backgroundColor	|	string	|	**NO**			| Background Color		| `auto` or ` ` 	|
+| api_host			|	string	|	**NO**			| API host (`/api/v1/realtime/*`) | `` (same origin) |
 
 Leave the 'textColor' and 'BackgroundColor' fields empty (or enter 'auto') so that the color is automatically assigned according to the line.
 
