@@ -164,44 +164,45 @@ export class TamCard extends LitElement {
 				</p>
 			`;
 		} else {
-			const proche = this.fetchedData['result']?.time[0] == 'Proche !!';
+			const result = this.fetchedData['result'] as Record<string, unknown>;
+			const time = result?.time as string[];
+			const proche = time?.[0] == 'Proche !!';
 			const noConversion =
-				this.fetchedData['result']?.time[0] == 'Proche !!' ||
-				this.fetchedData['result']?.time[0] == 'Indisponible' ||
-				this.fetchedData['result']?.time[0] == 'Fin de service';
+				time?.[0] == 'Proche !!' ||
+				time?.[0] == 'Indisponible' ||
+				time?.[0] == 'Fin de service';
 
-			if (this.fetchedData['result']?.time.length > 1) {
+			if (time?.length > 1) {
 				return html`
 					<ha-card tabindex="0" aria-label="TAM">
 						<div
 							id="states"
-							style="background-color: ${this.fetchedData['result']?.backgroundColor}; color: ${this
-								.fetchedData['result']?.textColor}"
+							style="background-color: ${result?.backgroundColor}; color: ${result?.textColor}"
 							class="${proche ? 'card-content clignote' : 'card-content'}"
 						>
 							<div class="flex">
 								<div class="badge">
-									<ha-icon icon="${this.fetchedData['result']?.icon || 'mdi:tram'}"></ha-icon>
+									<ha-icon icon="${result?.icon || 'mdi:tram'}"></ha-icon>
 								</div>
 								<div class="text cap info flexAlign">
-									<div>${this.fetchedData['result']?.stop.toLowerCase()}</div>
+									<div>${(result?.stop as string)?.toLowerCase()}</div>
 									&nbsp&nbsp
 									<div class="">➜</div>
 									&nbsp&nbsp
-									<div>${this.fetchedData['result']?.direction.toLowerCase()}</div>
+									<div>${(result?.direction as string)?.toLowerCase()}</div>
 								</div>
 
 								<div class="text right flexAlign">
 									<div>
 										${noConversion
-											? this.fetchedData['result']?.time[0]
-											: this.timeConvert(this.fetchedData['result']?.time[0], 2)}
+											? time?.[0]
+											: this.timeConvert(parseInt(time?.[0] as string, 10), 2)}
 									</div>
 									&nbsp&nbsp&nbsp
 									<div class="bold">|</div>
 									&nbsp&nbsp&nbsp
 									<div>
-										${this.timeConvert(this.fetchedData['result']?.time[1], 2)}
+										${this.timeConvert(parseInt(time?.[1] as string, 10), 2)}
 									</div>
 								</div>
 							</div>
@@ -213,30 +214,29 @@ export class TamCard extends LitElement {
 					<ha-card tabindex="0" aria-label="TAM">
 						<div
 							id="states"
-							style="background-color: ${this.fetchedData['result']?.backgroundColor}; color: ${this
-								.fetchedData['result']?.textColor}"
+							style="background-color: ${result?.backgroundColor}; color: ${result?.textColor}"
 							class="${proche ? 'card-content clignote' : 'card-content'}"
 						>
 							<div class="flex">
 								<div class="badge">
-									<ha-icon icon="${this.fetchedData['result']?.icon || 'mdi:tram'}"></ha-icon>
+									<ha-icon icon="${result?.icon || 'mdi:tram'}"></ha-icon>
 								</div>
 								<div class="text cap info flexAlign">
 									<div class="">
-										${this.fetchedData['result']?.stop.toLowerCase()}
+										${(result?.stop as string)?.toLowerCase()}
 									</div>
 									&nbsp&nbsp
 									<div class="">➜</div>
 									&nbsp&nbsp
 									<div class="text">
-										${this.fetchedData['result']?.direction.toLowerCase()}
+										${(result?.direction as string)?.toLowerCase()}
 									</div>
 								</div>
 								<div class="text right flexAlign">
 									<div class="">
 										${noConversion
-											? this.fetchedData['result']?.time
-											: this.timeConvert(this.fetchedData['result']?.time[0], 1)}
+											? time
+											: this.timeConvert(parseInt(time?.[0] as string, 10), 1)}
 									</div>
 								</div>
 							</div>
