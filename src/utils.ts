@@ -65,7 +65,6 @@ export async function fetchStops(apiHost: string): Promise<string[]> {
 
 		const response = await fetch(url, {
 			method: 'GET',
-			mode: 'no-cors',
 			headers: {
 				Accept: 'application/json',
 			},
@@ -94,7 +93,7 @@ export async function fetchStops(apiHost: string): Promise<string[]> {
 }
 
 // Fetch passages from API
-// API Response: { stop_name, count, limit, data: [ { route_short_name, route_long_name, trip_headsign, scheduled_time, delay_seconds, estimated_time, minutes_from_now, direction_id, wheelchair_access } ] }
+// API Response: { stop_name, count, limit, data: [ { route_short_name, route_long_name, trip_headsign, scheduled_time, delay_seconds, estimated_time, minutes_from_now, direction_id, wheelchair_ac[...]
 export async function fetchPassages(apiHost: string, stopName: string, limit = 5): Promise<Passage[]> {
 	try {
 		const url = `${normalizeApiHost(apiHost)}/api/v1/realtime/passages?stop_name=${encodeURIComponent(
@@ -104,7 +103,6 @@ export async function fetchPassages(apiHost: string, stopName: string, limit = 5
 
 		const response = await fetch(url, {
 			method: 'GET',
-			mode: 'no-cors',
 			headers: {
 				Accept: 'application/json',
 			},
