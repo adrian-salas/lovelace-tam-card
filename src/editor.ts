@@ -66,7 +66,7 @@ export class TamCardEditor extends LitElement implements LovelaceCardEditor {
 			this.stops = await fetchStops(this._apiHost);
 		} catch (error) {
 			this.stops = [];
-			this.loadingError = 'Impossible de charger les arrêts depuis l'API';
+			this.loadingError = 'Impossible de charger les arrets depuis l\'API';
 			console.error(error);
 		} finally {
 			this.loadingStops = false;
@@ -86,7 +86,7 @@ export class TamCardEditor extends LitElement implements LovelaceCardEditor {
 			this.directions = [...new Set(directions)].sort();
 		} catch (error) {
 			this.directions = [];
-			this.loadingError = 'Impossible de charger les directions depuis l'API';
+			this.loadingError = 'Impossible de charger les directions depuis l\'API';
 			console.error(error);
 		} finally {
 			this.loadingDirections = false;
@@ -98,7 +98,7 @@ export class TamCardEditor extends LitElement implements LovelaceCardEditor {
 			return html`
 				<div class="card-config">
 					<div class="description">
-						<p>Veuillez patienter le temps de charger les arrêts / directions disponibles.</p>
+						<p>Veuillez patienter le temps de charger les arrets / directions disponibles.</p>
 					</div>
 				</div>
 			`;
@@ -108,7 +108,7 @@ export class TamCardEditor extends LitElement implements LovelaceCardEditor {
 			<div class="card-config">
 				<div class="description">
 					<p>
-						Si votre arrêt / direction n'est pas disponible après le chargement, réessayer ultérieurement.
+						Si votre arret / direction n'est pas disponible apres le chargement, reessayer ulterieurement.
 					</p>
 					${this.loadingError
 						? html`
@@ -151,7 +151,7 @@ export class TamCardEditor extends LitElement implements LovelaceCardEditor {
 				<div class="option2">
 					<div class="values">
 						<ha-select
-							label="Arrêt"
+							label="Arret"
 							@selected=${this._valueChanged}
 							.configValue=${'stop'}
 							.value=${this._stop}
