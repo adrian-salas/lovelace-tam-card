@@ -106,7 +106,7 @@ export class TamCard extends LitElement {
 		retries = 2,
 	): Promise<Passage[]> {
 		let attempts = 0;
-		const apiHost = normalizeApiHost(this._config?.api_host || this._config?.apiHost);
+		const apiHost = normalizeApiHost(this._config?.api_host);
 		while (attempts <= retries) {
 			try {
 				const passages = await fetchPassages(apiHost, stopName, 5);
