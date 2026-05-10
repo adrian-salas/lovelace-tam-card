@@ -1,93 +1,220 @@
-import { Passage, PassageApiResponse, Stop, StopApiResponse } from './types';
-import moment from 'moment-timezone';
+import { AllDataTypes } from './types';
+import ALLDATA from './merged_data.json';
 
-export const DEFAULT_API_HOST = '';
+const all_data: AllDataTypes[] = ALLDATA as AllDataTypes[];
 
-export function normalizeApiHost(apiHost?: string): string {
-	return (apiHost || DEFAULT_API_HOST).replace(/\/$/, '');
-}
-
-async function fetchJson<T>(url: string): Promise<T> {
-	const response = await fetch(url, {
-		mode: 'cors',
-		headers: {
-			Accept: 'application/json',
-		},
+export function getTripHeadsign(stopName): any {
+	const tripHeadsigns: any = [];
+	all_data.forEach(item => {
+		if (item.stop_name === stopName) {
+			tripHeadsigns.push(item.trip_headsign);
+		}
 	});
-	if (!response.ok) {
-		throw new Error(`${response.url}: ${response.status} ${response.statusText}`);
+	const uniqueTripHeadsigns = tripHeadsigns.filter((value, index, self) => self.indexOf(value) === index);
+	uniqueTripHeadsigns.sort();
+
+	return uniqueTripHeadsigns.length ? uniqueTripHeadsigns : ['Stop non trouvé'];
+}
+
+export function getAllStops(): string[] {
+	let allStop = all_data.map(objet => objet.stop_name);
+	allStop = [...new Set(allStop)];
+	allStop.sort();
+	return allStop;
+}
+
+export function timestampToTime(timestamp: any): string {
+	const date = new Date(timestamp.time * 1000);
+	const hours = date.getHours();
+	const minutes = `0${date.getMinutes()}`.slice(-2);
+	const seconds = `0${date.getSeconds()}`.slice(-2);
+	return `${hours}:${minutes}:${seconds}`;
+}
+
+export function showTrip(tripData: any): any {
+	const data = all_data.find(item => item.trip_id.includes(tripData.tripId));
+	if (data) {
+		if (data.hasOwnProperty('trip_headsign') && data.trip_headsign !== '') {
+			return data.trip_headsign;
+		}
 	}
-	return response.json();
+	return 'Destination inconnue';
 }
 
-export async function fetchStops(apiHost: string): Promise<string[]> {
-	const host = normalizeApiHost(apiHost);
-	const response = await fetchJson<StopApiResponse | Stop[]>(`${host}/api/v1/realtime/stops`);
-	const stops = Array.isArray(response) ? response : response?.data || response?.stops || [];
-	const stopNames = stops.map((stop: Stop) => stop.stop_name).filter(stopName => Boolean(stopName));
-	return [...new Set(stopNames)].sort();
+function searchStopAndDirection(stopName, direction): any {
+	const results: any = [];
+	all_data.forEach(item => {
+		if (item.stop_name === stopName && item.trip_headsign === direction) {
+			results.push({
+				stop_id: item.stop_id,
+				route_id: item.route_id,
+				trip_headsign: item.trip_headsign,
+				stop_name: item.stop_name,
+				route_short_name: item.route_short_name,
+			});
+		}
+	});
+
+	return results;
 }
 
-export async function fetchPassages(apiHost: string, stopName: string, limit = 5): Promise<Passage[]> {
-	if (!stopName) {
+function toPascalCase(str): any {
+	return str.toLowerCase().replace(/\b\w/g, char => char.toUpperCase());
+}
+
+// Parse CSV string to array of objects
+function parseCSV(csvText: string): any[] {
+	const lines = csvText.trim().split('\n');
+	if (lines.length < 2) {
+		console.error('CSV file is empty or invalid');
 		return [];
 	}
-	const host = normalizeApiHost(apiHost);
-	const params = new URLSearchParams({
-		stop_name: stopName,
-		limit: String(limit),
-	});
-	const response = await fetchJson<PassageApiResponse | Passage[]>(
-		`${host}/api/v1/realtime/passages?${params.toString()}`,
-	);
-	return Array.isArray(response) ? response : response?.data || response?.passages || [];
+
+	const headers = lines[0].split(';');
+	const data: any[] = [];
+
+	for (let i = 1; i < lines.length; i++) {
+		const values = lines[i].split(';');
+		const row: any = {};
+
+		headers.forEach((header, index) => {
+			row[header.trim()] = values[index] ? values[index].trim() : '';
+		});
+
+		data.push(row);
+	}
+
+	return data;
 }
 
-function getPassageMinutes(passage: Passage, now: moment.Moment): number | null {
-	if (typeof passage.minutes_until_departure === 'number' && !Number.isNaN(passage.minutes_until_departure)) {
-		return Math.max(0, Math.floor(passage.minutes_until_departure));
+// Fetch data from TAM CSV API via local proxy
+export async function findData(direction): Promise<any> {
+	if (direction === undefined || direction.length === 0 || direction === null) return null;
+
+	try {
+		const proxyUrl = 'http://localhost:3001/api/tam-csv';
+		console.log('Fetching TAM CSV data from proxy:', proxyUrl);
+		
+		const response = await fetch(proxyUrl, {
+			mode: 'no-cors',
+			headers: {
+				'Accept': 'text/csv',
+			},
+		});
+
+		if (!response.ok) {
+			const error = new Error(`${response.url}: ${response.status} ${response.statusText}`);
+			error['response'] = response;
+			console.error('API Error:', error);
+			throw error;
+		}
+
+		const csvText = await response.text();
+		const csvData = parseCSV(csvText);
+
+		console.log(`Parsed ${csvData.length} records from CSV`);
+
+		// Filter data by stop_id and route_short_name and trip_headsign
+		const filteredData = csvData.filter(row => {
+			return (
+				row.stop_id === direction.stop_id &&
+				row.route_short_name === direction.route_short_name &&
+				row.trip_headsign === direction.trip_headsign
+			);
+		});
+
+		console.log(`Found ${filteredData.length} matching records`);
+
+		// Sort by departure_time and format response
+		const parsedObject: any = filteredData
+			.map(row => ({
+				trip_headsign: row.trip_headsign,
+				departure_time: row.departure_time,
+				route_short_name: row.route_short_name,
+				stop_name: row.stop_name,
+			}))
+			.sort((a, b) => a.departure_time.localeCompare(b.departure_time));
+
+		console.log('Returning data:', parsedObject);
+		return parsedObject;
+	} catch (error) {
+		console.error('Error fetching or parsing CSV:', error);
+		return [];
 	}
-	const rawTime = passage.expected_departure_time || passage.departure_time || passage.passage_time;
-	if (!rawTime) {
-		return null;
-	}
-	const fullDateOfTimeCourse = now.clone();
-	const [hours, minutes, seconds] = rawTime.split(':');
-	if (!hours || !minutes) {
-		return null;
-	}
-	if (hours >= '00' && hours <= '03' && (now.hour() === 22 || now.hour() === 23)) {
-		fullDateOfTimeCourse.add(1, 'days');
-	}
-	fullDateOfTimeCourse.set({
-		hour: parseInt(hours, 10),
-		minute: parseInt(minutes, 10),
-		second: parseInt(seconds || '0', 10),
-	});
-	if (fullDateOfTimeCourse <= now) {
-		return null;
-	}
-	return fullDateOfTimeCourse.diff(now, 'minutes');
 }
 
-export function parsePassageData(passages: Passage[]): any {
-	const time: string[] = [];
-	const now = moment(new Date()).tz('Europe/Paris');
-	for (const passage of passages) {
-		const minutes = getPassageMinutes(passage, now);
-		if (minutes === null) {
-			continue;
+export async function getData(stopName, direction): Promise<any> {
+	try {
+		let obj = await searchStopAndDirection(stopName, direction);
+		if (obj.length === 0) {
+			const new_stopName = toPascalCase(stopName);
+			obj = await searchStopAndDirection(new_stopName, direction);
 		}
-		time.push(minutes.toString());
-	}
-	if (time.length === 0) {
-		return ['Fin de service'];
-	}
-	const sortedTime = time.sort((a: any, b: any) => a - b);
-	for (let i = 0; i < sortedTime.length; i++) {
-		if (parseInt(sortedTime[i], 10) < 2) {
-			sortedTime[i] = 'Proche !!';
+
+		if (obj.length === 0) {
+			console.warn(`No matching stop/direction found: ${stopName} / ${direction}`);
+			return [];
 		}
+
+		console.log('Searching for direction config:', obj[0]);
+		return await findData(obj[0]);
+	} catch (error) {
+		console.error('Error in getData:', error);
+		return [];
 	}
-	return [...new Set(sortedTime)];
+}
+
+// New API functions for REST endpoints
+export async function fetchStops(apiHost: string): Promise<string[]> {
+	try {
+		const url = `${apiHost}/api/v1/realtime/stops`;
+		console.log('Fetching stops from:', url);
+		
+		const response = await fetch(url, {
+			method: 'GET',
+			mode: 'no-cors',
+			headers: {
+				'Accept': 'application/json',
+			},
+		});
+
+		if (!response.ok) {
+			console.error(`API Error: ${response.status} ${response.statusText}`);
+			return [];
+		}
+
+		const data = await response.json();
+		console.log(`✅ Received ${data.length} stops`, data);
+		return Array.isArray(data) ? data : [];
+	} catch (error) {
+		console.error('Error fetching stops:', error);
+		return [];
+	}
+}
+
+export async function fetchPassages(apiHost: string, stopName: string, limit: number = 5): Promise<any[]> {
+	try {
+		const url = `${apiHost}/api/v1/realtime/passages?stop_name=${encodeURIComponent(stopName)}&limit=${limit}`;
+		console.log('Fetching passages from:', url);
+		
+		const response = await fetch(url, {
+			method: 'GET',
+			mode: 'no-cors',
+			headers: {
+				'Accept': 'application/json',
+			},
+		});
+
+		if (!response.ok) {
+			console.error(`API Error: ${response.status} ${response.statusText}`);
+			return [];
+		}
+
+		const data = await response.json();
+		console.log(`✅ Received ${data.length} passages`, data);
+		return Array.isArray(data) ? data : [];
+	} catch (error) {
+		console.error('Error fetching passages:', error);
+		return [];
+	}
 }
