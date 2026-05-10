@@ -6,12 +6,12 @@ export async function fetchStops(apiHost: string): Promise<string[]> {
 	try {
 		const url = `${apiHost}/api/v1/realtime/stops`;
 		console.log('Fetching stops from:', url);
-		
+
 		const response = await fetch(url, {
 			method: 'GET',
 			mode: 'no-cors',
 			headers: {
-				'Accept': 'application/json',
+				Accept: 'application/json',
 			},
 		});
 
@@ -22,14 +22,14 @@ export async function fetchStops(apiHost: string): Promise<string[]> {
 
 		const responseData = await response.json();
 		console.log('Raw API response:', responseData);
-		
+
 		// Extract stops from the data array and use the 'Name' field
 		if (responseData.data && Array.isArray(responseData.data)) {
 			const stops = responseData.data.map(stop => stop.Name).filter(name => name);
 			console.log(`✅ Extracted ${stops.length} stops`);
 			return stops;
 		}
-		
+
 		return [];
 	} catch (error) {
 		console.error('Error fetching stops:', error);
@@ -39,16 +39,16 @@ export async function fetchStops(apiHost: string): Promise<string[]> {
 
 // Fetch passages from API
 // API Response: { stop_name, count, limit, data: [ { route_short_name, route_long_name, trip_headsign, scheduled_time, delay_seconds, estimated_time, minutes_from_now, direction_id, wheelchair_access } ] }
-export async function fetchPassages(apiHost: string, stopName: string, limit: number = 5): Promise<Passage[]> {
+export async function fetchPassages(apiHost: string, stopName: string, limit = 5): Promise<Passage[]> {
 	try {
 		const url = `${apiHost}/api/v1/realtime/passages?stop_name=${encodeURIComponent(stopName)}&limit=${limit}`;
 		console.log('Fetching passages from:', url);
-		
+
 		const response = await fetch(url, {
 			method: 'GET',
 			mode: 'no-cors',
 			headers: {
-				'Accept': 'application/json',
+				Accept: 'application/json',
 			},
 		});
 
@@ -59,7 +59,7 @@ export async function fetchPassages(apiHost: string, stopName: string, limit: nu
 
 		const responseData = await response.json();
 		console.log('Raw API response:', responseData);
-		
+
 		// Extract passages from the data array
 		if (responseData.data && Array.isArray(responseData.data)) {
 			// Transform API response to match expected format
@@ -75,7 +75,7 @@ export async function fetchPassages(apiHost: string, stopName: string, limit: nu
 			console.log(`✅ Extracted ${passages.length} passages`);
 			return passages;
 		}
-		
+
 		return [];
 	} catch (error) {
 		console.error('Error fetching passages:', error);
