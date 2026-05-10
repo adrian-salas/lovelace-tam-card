@@ -342,9 +342,9 @@ export class TamCard extends LitElement {
 }
 
 customElements.define('tam-card', TamCard);
-(window as unknown as Record<string, unknown>).customCards =
-	(window as unknown as Record<string, unknown>).customCards || [];
-((window as unknown as Record<string, unknown>).customCards as unknown[]).push({
+((window as unknown) as Record<string, unknown>).customCards = ((window as unknown) as Record<string, unknown>)
+	.customCards || [];
+(((window as unknown) as Record<string, unknown>).customCards as unknown[]).push({
 	type: 'tam-card',
 	name: 'TAM Montpellier',
 	preview: false,
