@@ -3,8 +3,8 @@ import { HomeAssistant, LovelaceCardEditor } from 'custom-card-helpers';
 
 import './editor';
 
-import { getData } from './utils';
-import { TamCardConfig } from './types';
+import { fetchPassages, normalizeApiHost, parsePassageData } from './utils';
+import { Passage, TamCardConfig } from './types';
 import { CARD_VERSION } from './const';
 
 import { color } from './color';
@@ -12,7 +12,6 @@ import { icon } from './icon';
 
 import { localize } from './localize/localize';
 import validateColor from 'validate-color';
-import moment from 'moment-timezone';
 /* eslint no-console: 0 */
 console.info(
 	`%c	TAM-CARD \n%c	${localize('common.version')} ${CARD_VERSION}	`,
@@ -32,7 +31,7 @@ export class TamCard extends LitElement {
 	@property() public hass?: HomeAssistant;
 	@property() private _config?: TamCardConfig;
 	@property() private waitFetch = false;
-	@property() private fetchedData = {};
+	@property() private fetchedData: any = null;
 
 	public async setConfig(config: TamCardConfig): Promise<void> {
 		if (!config) {
@@ -77,63 +76,72 @@ export class TamCard extends LitElement {
 		return defaultColor;
 	}
 
-	protected parseCourseTam(result, query): object {
+	protected parseCourseTam(result: Passage[], stopName: string, direction: string): object {
 		const res = {};
-		const time: string[] = [];
-		const now = moment(new Date()).tz('Europe/Paris');
+		const time = parsePassageData(result);
 
 		if (result.length === 0) {
-			res['time'] = ['Fin de service'];
-			res['stop'] = query.stop_name;
-			res['direction'] = query.trip_headsign;
+			res['time'] = time;
+			res['stop'] = stopName;
+			res['direction'] = direction;
 			res['icon'] = icon[0];
 			res['backgroundColor'] = this.checkBackgroundColor(0);
 			res['textColor'] = this.checkTextColor('black');
 		} else {
-			for (const course of result) {
-				const fullDateOfTimeCourse = moment(new Date()).tz('Europe/Paris');
-				const [hours, minutes, seconds] = course.departure_time.split(':');
-				if (hours >= '00' && hours <= '03' && (now.hour() == 22 || now.hour() == 23))
-					fullDateOfTimeCourse.add(1, 'days');
-				fullDateOfTimeCourse.set({ hour: hours, minute: minutes, second: seconds });
-				if (fullDateOfTimeCourse > now) {
-					const min = fullDateOfTimeCourse.diff(now, 'minutes');
-					time.push(min.toString());
-				}
-			}
-			if (time.length === 0) {
-				time.push('Indisponible');
-				res['time'] = time;
-			} else {
-				const sortedTime = time.sort(function(a: any, b: any) {
-					return a - b;
-				});
-				for (let i = 0; i < sortedTime.length; i++) {
-					if (parseInt(sortedTime[i]) < 2) {
-						sortedTime[i] = 'Proche !!';
-					}
-				}
-				res['time'] = [...new Set(sortedTime)];
-			}
-			res['stop'] = result[0].stop_name;
-			res['direction'] = result[0].trip_headsign;
-			res['icon'] = icon[result[0].route_short_name];
-			res['backgroundColor'] = this.checkBackgroundColor(result[0].route_short_name);
+			const routeShortName = result[0].route_short_name || 0;
+			res['time'] = time;
+			res['stop'] = result[0].stop_name || stopName;
+			res['direction'] = direction || result[0].trip_headsign || '';
+			res['icon'] = icon[routeShortName] || icon[0];
+			res['backgroundColor'] = this.checkBackgroundColor(routeShortName);
 			res['textColor'] = this.checkTextColor('black');
 		}
 		return res;
 	}
 
+	protected async fetchPassagesWithRetry(stopName: string, direction: string, retries = 2): Promise<Passage[]> {
+		let attempts = 0;
+		const apiHost = normalizeApiHost(this._config?.api_host || this._config?.apiHost);
+		while (attempts <= retries) {
+			try {
+				const passages = await fetchPassages(apiHost, stopName, 5);
+				if (!direction) {
+					return passages;
+				}
+				return passages.filter(passage => passage.trip_headsign === direction);
+			} catch (error) {
+				attempts += 1;
+				if (attempts > retries) {
+					throw error;
+				}
+				await this.sleep(1000 * attempts);
+			}
+		}
+		return [];
+	}
+
 	protected async fetchDataApi(): Promise<void> {
-		const filters = { stop_name: this._config?.stop, trip_headsign: this._config?.direction };
-		const resultToParse = await getData(this._config?.stop, this._config?.direction);
-		this.fetchedData = { result: this.parseCourseTam(resultToParse, filters) };
+		if (!this._config?.stop || !this._config?.direction) {
+			return;
+		}
+		this.fetchedData = null;
+		try {
+			const resultToParse = await this.fetchPassagesWithRetry(this._config.stop, this._config.direction);
+			this.fetchedData = {
+				result: this.parseCourseTam(resultToParse, this._config.stop, this._config.direction),
+			};
+		} catch (error) {
+			console.error('Error fetching passages:', error);
+			this.fetchedData = {
+				result: this.parseCourseTam([], this._config.stop, this._config.direction),
+			};
+		}
 	}
 
 	protected async waitFetchApi(): Promise<void> {
 		if (this.waitFetch === false) {
 			this.waitFetch = true;
-			this.fetchDataApi();
+			await this.fetchDataApi();
 			await this.sleep(20000);
 			this.waitFetch = false;
 		}
@@ -148,7 +156,7 @@ export class TamCard extends LitElement {
 
 		this.waitFetchApi();
 
-		if (!this.fetchedData) {
+		if (!this.fetchedData || !this.fetchedData['result']) {
 			return html`
 				<p class="dot-loading">
 					Chargement&nbsp<span>.</span><span>.</span><span>.</span><span>.</span><span>.</span>
