@@ -1,26 +1,25 @@
 {
   "name": "tam-card",
-  "version": "2.1.0",
-  "description": "Lovelace tam-card",
+  "version": "2.2.0",
+  "description": "Lovelace TAM card - Display Montpellier TAM transport schedules in Home Assistant",
   "keywords": [
     "home-assistant",
     "homeassistant",
     "hass",
     "automation",
     "lovelace",
-    "custom-cards"
+    "custom-cards",
+    "tam",
+    "montpellier",
+    "transport"
   ],
   "module": "tam-card.js",
-  "repository": "git@github.com:mathisalepis/lovelace-tam-card.git",
+  "repository": "git@github.com:adrian-salas/lovelace-tam-card.git",
   "author": "Mathis Alepis <mathis.alepis@epitech.eu>",
   "license": "MIT",
   "dependencies": {
     "@lit-labs/scoped-registry-mixin": "^1.0.1",
-    "axios": "^1.6.8",
-    "csv-parser": "^3.0.0",
     "custom-card-helpers": "~1.3.9",
-    "gtfs-realtime-bindings": "^1.1.1",
-    "home-assistant-js-websocket": "^4.4.0",
     "lit-element": "^2.2.1",
     "lit-html": "^1.1.2",
     "moment-timezone": "^0.5.37",
