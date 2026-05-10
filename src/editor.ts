@@ -66,7 +66,7 @@ export class TamCardEditor extends LitElement implements LovelaceCardEditor {
 			this.stops = await fetchStops(this._apiHost);
 		} catch (error) {
 			this.stops = [];
-			this.loadingError = 'Impossible de charger les arrets depuis l\'API';
+			this.loadingError = "Impossible de charger les arrets depuis l'API";
 			console.error(error);
 		} finally {
 			this.loadingStops = false;
@@ -86,7 +86,7 @@ export class TamCardEditor extends LitElement implements LovelaceCardEditor {
 			this.directions = [...new Set(directions)].sort();
 		} catch (error) {
 			this.directions = [];
-			this.loadingError = 'Impossible de charger les directions depuis l\'API';
+			this.loadingError = "Impossible de charger les directions depuis l'API";
 			console.error(error);
 		} finally {
 			this.loadingDirections = false;
