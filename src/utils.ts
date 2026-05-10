@@ -1,10 +1,16 @@
 import { Passage } from './types';
 
+export const DEFAULT_API_HOST = '';
+
+export function normalizeApiHost(apiHost?: string): string {
+	return (apiHost || DEFAULT_API_HOST).replace(/\/$/, '');
+}
+
 // Fetch stops from API
 // API Response: { count: 777, data: [ { ID, Code, Name, Latitude, Longitude, WheelchairBoarding } ] }
 export async function fetchStops(apiHost: string): Promise<string[]> {
 	try {
-		const url = `${apiHost}/api/v1/realtime/stops`;
+		const url = `${normalizeApiHost(apiHost)}/api/v1/realtime/stops`;
 		console.log('Fetching stops from:', url);
 
 		const response = await fetch(url, {
@@ -41,7 +47,7 @@ export async function fetchStops(apiHost: string): Promise<string[]> {
 // API Response: { stop_name, count, limit, data: [ { route_short_name, route_long_name, trip_headsign, scheduled_time, delay_seconds, estimated_time, minutes_from_now, direction_id, wheelchair_access } ] }
 export async function fetchPassages(apiHost: string, stopName: string, limit = 5): Promise<Passage[]> {
 	try {
-		const url = `${apiHost}/api/v1/realtime/passages?stop_name=${encodeURIComponent(stopName)}&limit=${limit}`;
+		const url = `${normalizeApiHost(apiHost)}/api/v1/realtime/passages?stop_name=${encodeURIComponent(stopName)}&limit=${limit}`;
 		console.log('Fetching passages from:', url);
 
 		const response = await fetch(url, {
