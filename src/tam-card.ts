@@ -90,7 +90,7 @@ export class TamCard extends LitElement {
 		const apiHost = normalizeApiHost(this._config?.api_host);
 		while (attempts <= retries) {
 			try {
-				const passages = await fetchPassages(apiHost, stopName, 50);
+				const passages = await fetchPassages(apiHost, stopName, 5);
 
 				// Filter by route if specified
 				let filtered = passages;

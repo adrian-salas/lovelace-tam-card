@@ -93,7 +93,7 @@ export class TamCardEditor extends LitElement implements LovelaceCardEditor {
 		this.loadingRoutes = true;
 		this.loadingError = undefined;
 		try {
-			const passages = await fetchPassages(this._apiHost, stopName, 50);
+			const passages = await fetchPassages(this._apiHost, stopName, 5);
 			const uniqueRoutes = [...new Set(passages.map(p => p.route_short_name))].filter(r => Boolean(r)).sort();
 			this.routes = uniqueRoutes;
 		} catch (error) {
@@ -113,7 +113,7 @@ export class TamCardEditor extends LitElement implements LovelaceCardEditor {
 		this.loadingDirections = true;
 		this.loadingError = undefined;
 		try {
-			const passages = await fetchPassages(this._apiHost, stopName, 50);
+			const passages = await fetchPassages(this._apiHost, stopName, 5);
 			const filteredPassages = passages.filter(p => p.route_short_name === routeShortName);
 			const uniqueDirections = [...new Set(filteredPassages.map(p => p.trip_headsign))]
 				.filter(d => Boolean(d))
