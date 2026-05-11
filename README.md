@@ -10,21 +10,15 @@ The APP get's [GTFS-RT data](https://data.montpellier3m.fr/dataset/offre-de-tran
 
 ## Options
 
-| Name				| Type		| Requirement		| Description			| Default			|
-| ----------------- | --------- | ----------------- | --------------------- | ----------------- |
-| type				|	string	|	**Required**	| `custom:tam-card`		| `custom:tam-card`	|
-| stop				|	string	|	**Required**	| Arrêt					| `Pablo Picasso`	|
-| direction 		|	string	|	**Required**	| Direction				| `LATTES CENTRE`	|
-| textColor			|	string	|	**NO**			| Text Color			| `auto` or ` ` 	|
-| backgroundColor	|	string	|	**NO**			| Background Color		| `auto` or ` ` 	|
-| api_host			|	string	|	**NO**			| API host (`/api/v1/realtime/*`) | `` (same origin) |
+| Name            | Type   | Requirement  | Description                     | Default           |
+| --------------- | ------ | ------------ | ------------------------------- | ----------------- |
+| type            | string | **Required** | `custom:tam-card`               | `custom:tam-card` |
+| stop            | string | **Required** | Arrêt                           | `Pablo Picasso`   |
+| direction       | string | **Required** | Direction                       | `LATTES CENTRE`   |
+| textColor       | string | **NO**       | Text Color                      | `auto` or ``      |
+| backgroundColor | string | **NO**       | Background Color                | `auto` or ``      |
+| api_host        | string | **NO**       | API host (`/api/v1/realtime/*`) | `` (same origin)  |
 
 Leave the 'textColor' and 'BackgroundColor' fields empty (or enter 'auto') so that the color is automatically assigned according to the line.
 
 ## Developing
-
-1. Fork and clone the repository.
-2. Open the folder and run `npm run-script build` when it's ready.
-3. The compiled `.js` file will be accessible at dist folder
-4. On a running Home Assistant installation copy the compiled file to /www/community/XXXXX/
-5. Add the ressouces to Home Assistant Lovelace
