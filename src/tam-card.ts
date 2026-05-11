@@ -28,6 +28,8 @@ export class TamCard extends LitElement {
 		return {
 			stop: 'JUVIGNAC',
 			api_host: 'http://localhost:8080',
+			update_interval: 60,
+			limit: 3,
 		};
 	}
 
@@ -46,6 +48,8 @@ export class TamCard extends LitElement {
 
 		this._config = {
 			...config,
+			update_interval: config.update_interval || 60,
+			limit: config.limit || 3,
 		};
 	}
 
@@ -81,7 +85,7 @@ export class TamCard extends LitElement {
 		return defaultColor;
 	}
 
-	protected async fetchPassagesWithRetry(stopName: string, retries = 2): Promise<Passage[]> {
+	protected async fetchPassagesWithRetry(stopName: string, limit: number, retries = 2): Promise<Passage[]> {
 		let attempts = 0;
 		const apiHost = normalizeApiHost(this._config?.api_host);
 		while (attempts <= retries) {
@@ -99,7 +103,8 @@ export class TamCard extends LitElement {
 					filtered = filtered.filter(p => p.trip_headsign === this._config?.direction);
 				}
 
-				return filtered;
+				// Limit to the configured number of passages
+				return filtered.slice(0, limit);
 			} catch (error) {
 				attempts += 1;
 				if (attempts > retries) {
@@ -117,7 +122,8 @@ export class TamCard extends LitElement {
 		}
 		this.fetchedData = null;
 		try {
-			this.fetchedData = await this.fetchPassagesWithRetry(this._config.stop);
+			const limit = this._config.limit || 3;
+			this.fetchedData = await this.fetchPassagesWithRetry(this._config.stop, limit);
 		} catch (error) {
 			console.error('Error fetching passages:', error);
 			this.fetchedData = [];
@@ -128,7 +134,8 @@ export class TamCard extends LitElement {
 		if (this.waitFetch === false) {
 			this.waitFetch = true;
 			await this.fetchDataApi();
-			await this.sleep(20000);
+			const updateInterval = (this._config?.update_interval || 60) * 1000;
+			await this.sleep(updateInterval);
 			this.waitFetch = false;
 		}
 	}
