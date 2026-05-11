@@ -1,7 +1,8 @@
 export interface TamCardConfig {
 	type: string;
 	stop: string;
-	direction: string;
+	direction?: string;
+	route_short_name?: string;
 	backgroundColor?: string;
 	textColor?: string;
 	api_host?: string;
