@@ -1,6 +1,6 @@
 {
   "name": "TAM Card",
   "render_readme": true,
-  "filename": "tam-card.js",
+  "filename": "dist/tam-card.js",
   "country": "FR"
 }
