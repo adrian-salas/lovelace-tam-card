@@ -25,7 +25,10 @@ export class TamCard extends LitElement {
 	}
 
 	public static getStubConfig(): object {
-		return {};
+		return {
+			stop: 'JUVIGNAC',
+			api_host: 'http://localhost:8080',
+		};
 	}
 
 	@property() public hass?: HomeAssistant;
