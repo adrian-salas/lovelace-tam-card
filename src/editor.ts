@@ -254,11 +254,11 @@ export class TamCardEditor extends LitElement implements LovelaceCardEditor {
 		`;
 	}
 
-	private async _valueChanged(ev): Promise<void> {
+	private async _valueChanged(ev: Event): Promise<void> {
 		if (!this._config || !this.hass) {
 			return;
 		}
-		const target = ev.target;
+		const target = ev.target as any;
 		if (this[`_${target.configValue}`] === target.value) {
 			return;
 		}
@@ -297,7 +297,10 @@ export class TamCardEditor extends LitElement implements LovelaceCardEditor {
 			this._config.direction = '';
 			this.directions = [];
 			if (target.value) {
-				await this.loadDirections(this._config.stop!, target.value);
+				const stop = this._config.stop;
+				if (stop) {
+					await this.loadDirections(stop, target.value);
+				}
 			}
 		}
 
