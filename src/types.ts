@@ -6,6 +6,8 @@ export interface TamCardConfig {
 	backgroundColor?: string;
 	textColor?: string;
 	api_host?: string;
+	update_interval?: number;
+	limit?: number;
 }
 
 export interface Passage {
