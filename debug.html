@@ -153,9 +153,15 @@
       </select>
     </div>
     <div class="select-group">
-      <label for="directions-select">Select Direction:</label>
+      <label for="routes-select">Select Route (Optional):</label>
+      <select id="routes-select" disabled>
+        <option value="">All routes</option>
+      </select>
+    </div>
+    <div class="select-group">
+      <label for="directions-select">Select Direction (Optional):</label>
       <select id="directions-select" disabled>
-        <option value="">Select a stop first</option>
+        <option value="">All directions</option>
       </select>
     </div>
     <button id="render-card-btn" disabled>Render Card (Waiting...)</button>
@@ -184,6 +190,10 @@
     let apiHost = localStorage.getItem('tamCardApiHost') || 'http://localhost:8080';
     document.getElementById('api-host').value = apiHost;
 
+    let availableStops = [];
+    let availableRoutes = [];
+    let availableDirections = [];
+
     function addLog(message, type = 'info') {
       const entry = document.createElement('div');
       entry.className = `log-entry log-${type}`;
@@ -198,80 +208,59 @@
     console.warn = (...args) => addLog(args.join(' '), 'warn');
 
     // Mock Home Assistant object
-    const mockHass = {
-      states: {},
-      entities: {},
-      devices: {},
-      areas: {},
-      services: {},
-      config: {
-        latitude: 43.61,
-        longitude: 3.88,
-        elevation: 50,
-        unit_system: {
-          length: 'km',
-          mass: 'kg',
-          temperature: '°C',
-          volume: 'L',
-        },
-        time_zone: 'Europe/Paris',
-        components: [],
-        version: '2023.1.0',
-      },
-      localize: () => '',
-      locale: {
-        language: 'fr',
-        country: 'FR',
-      },
-      call_service: () => {},
-    };
-
-    let tamCardLoaded = false;
-    let availableStops = [];
-    let availableDirections = [];
-
-    // Save API configuration
-    document.getElementById('save-config-btn').addEventListener('click', () => {
-      apiHost = document.getElementById('api-host').value;
-      if (!apiHost.trim()) {
-        addLog('❌ API Host cannot be empty', 'error');
-        return;
-      }
-      localStorage.setItem('tamCardApiHost', apiHost);
-      addLog(`✅ API Host saved: ${apiHost}`, 'success');
+    window.hassConnected = new Promise(resolve => {
+      window.hass = {
+        states: {},
+        services: {},
+        config: { unit_system: { length: 'km' } },
+        language: 'en',
+        latitude: 43.6108,
+        longitude: 3.8767,
+      };
+      resolve();
     });
 
-    // Load the card and test
-    async function init() {
-      try {
-        addLog('📦 Loading tam-card.js...', 'info');
-        
-        // Wait for custom element to be registered
-        addLog('⏳ Waiting 3 seconds for custom element registration...', 'info');
-        await new Promise(resolve => setTimeout(resolve, 3000));
-        
-        try {
-          // Check if tam-card is registered
-          const tamCardElement = customElements.get('tam-card');
-          if (tamCardElement) {
-            addLog('✅ tam-card custom element registered!', 'success');
-            addLog(`Element class: ${tamCardElement.name}`, 'info');
-            tamCardLoaded = true;
-            document.getElementById('load-status').innerHTML = '<span class="success">✅ tam-card ready!</span>';
-            
-            // Enable render button
-            document.getElementById('render-card-btn').disabled = false;
-            document.getElementById('render-card-btn').textContent = 'Render Card';
-          } else {
-            addLog('❌ tam-card custom element not registered after 3 seconds', 'error');
-            document.getElementById('load-status').innerHTML = '<span class="error">❌ Failed to register tam-card</span>';
-          }
-        } catch (e) {
-          addLog(`⚠️ Error checking element: ${e.message}`, 'warn');
-        }
-      } catch (e) {
-        addLog(`Error: ${e.message}`, 'error');
-      }
+    document.getElementById('save-config-btn').addEventListener('click', () => {
+      apiHost = document.getElementById('api-host').value;
+      localStorage.setItem('tamCardApiHost', apiHost);
+      addLog(`✅ Configuration saved: ${apiHost}`, 'success');
+    });
+
+    function populateStopsDropdown(stops) {
+      const stopSelect = document.getElementById('stops-select');
+      stopSelect.innerHTML = '<option value="">Select a stop</option>';
+      stops.forEach(stop => {
+        const option = document.createElement('option');
+        option.value = stop;
+        option.textContent = stop;
+        stopSelect.appendChild(option);
+      });
+      stopSelect.disabled = false;
+      document.getElementById('render-card-btn').disabled = false;
+    }
+
+    function populateRoutesDropdown(routes) {
+      const routeSelect = document.getElementById('routes-select');
+      routeSelect.innerHTML = '<option value="">All routes</option>';
+      routes.forEach(route => {
+        const option = document.createElement('option');
+        option.value = route;
+        option.textContent = `Route ${route}`;
+        routeSelect.appendChild(option);
+      });
+      routeSelect.disabled = false;
+    }
+
+    function populateDirectionsDropdown(directions) {
+      const directionSelect = document.getElementById('directions-select');
+      directionSelect.innerHTML = '<option value="">All directions</option>';
+      directions.forEach(direction => {
+        const option = document.createElement('option');
+        option.value = direction;
+        option.textContent = direction;
+        directionSelect.appendChild(option);
+      });
+      directionSelect.disabled = false;
     }
 
     async function testStopsApi() {
@@ -296,23 +285,14 @@
         const data = await response.json();
         addLog(`✅ Stops API working!`, 'success');
         
-        // Handle response format: { count, data: [...] }
-        if (data.data && Array.isArray(data.data)) {
-          const stops = data.data.map(stop => stop.Name).filter(name => name);
-          addLog(`✅ Extracted ${stops.length} stops from response`, 'success');
-          addLog(`Sample stops: ${stops.slice(0, 3).join(', ')}`, 'info');
-          availableStops = stops;
-          populateStopsDropdown(stops);
-          document.getElementById('api-result').innerHTML = `<span class="success">✅ API working! Stops received: ${stops.length}</span>`;
-        } else if (Array.isArray(data)) {
-          addLog(`✅ Received ${data.length} stops (legacy format)`, 'success');
+        if (Array.isArray(data)) {
+          addLog(`✅ Received ${data.length} stops`, 'success');
           addLog(`Sample stops: ${data.slice(0, 3).join(', ')}`, 'info');
           availableStops = data;
           populateStopsDropdown(data);
           document.getElementById('api-result').innerHTML = `<span class="success">✅ API working! Stops received: ${data.length}</span>`;
         } else {
-          addLog(`⚠️ Unexpected response format: ${JSON.stringify(data).substring(0, 150)}`, 'warn');
-          document.getElementById('api-result').innerHTML = `<span class="warning">⚠️ Unexpected format. Check console.</span>`;
+          addLog(`⚠️ Unexpected response format: ${JSON.stringify(data).substring(0, 100)}`, 'warn');
         }
       } catch (e) {
         addLog(`❌ API Error: ${e.message}`, 'error');
@@ -331,7 +311,7 @@
         }
 
         addLog(`🌐 Testing /api/v1/realtime/passages for stop: ${stop}...`, 'info');
-        const url = `${apiHost}/api/v1/realtime/passages?stop_name=${encodeURIComponent(stop)}&limit=5`;
+        const url = `${apiHost}/api/v1/realtime/passages?stop_name=${encodeURIComponent(stop)}&limit=50`;
         addLog(`📍 Requesting: ${url}`, 'info');
         
         const response = await fetch(url, {
@@ -350,26 +330,20 @@
         const data = await response.json();
         addLog(`✅ Passages API working!`, 'success');
         
-        // Handle response format: { stop_name, data: [...] }
-        if (data.data && Array.isArray(data.data)) {
-          addLog(`✅ Extracted ${data.data.length} passages from response`, 'success');
+        if (Array.isArray(data)) {
+          addLog(`✅ Received ${data.length} passages`, 'success');
           addLog(`Response: ${JSON.stringify(data, null, 2).substring(0, 200)}...`, 'info');
           
-          // Extract unique directions
-          const directions = [...new Set(data.data.map(p => p.trip_headsign || p.direction))].filter(Boolean);
-          if (directions.length > 0) {
-            availableDirections = directions;
-            populateDirectionsDropdown(directions);
-            addLog(`Found ${directions.length} unique directions`, 'success');
+          // Extract unique routes
+          const routes = [...new Set(data.map(p => p.route_short_name).filter(Boolean))].sort();
+          if (routes.length > 0) {
+            availableRoutes = routes;
+            populateRoutesDropdown(routes);
+            addLog(`Found ${routes.length} unique routes: ${routes.join(', ')}`, 'success');
           }
           
-          document.getElementById('api-result').innerHTML = `<span class="success">✅ API working! Passages received: ${data.data.length}</span>`;
-        } else if (Array.isArray(data)) {
-          addLog(`✅ Received ${data.length} passages (legacy format)`, 'success');
-          addLog(`Response: ${JSON.stringify(data, null, 2).substring(0, 200)}...`, 'info');
-          
           // Extract unique directions
-          const directions = [...new Set(data.map(p => p.trip_headsign || p.direction))].filter(Boolean);
+          const directions = [...new Set(data.map(p => p.trip_headsign || p.direction).filter(Boolean))].sort();
           if (directions.length > 0) {
             availableDirections = directions;
             populateDirectionsDropdown(directions);
@@ -379,7 +353,6 @@
           document.getElementById('api-result').innerHTML = `<span class="success">✅ API working! Passages received: ${data.length}</span>`;
         } else {
           addLog(`⚠️ Unexpected response format`, 'warn');
-          document.getElementById('api-result').innerHTML = `<span class="warning">⚠️ Unexpected format. Check console.</span>`;
         }
       } catch (e) {
         addLog(`❌ API Error: ${e.message}`, 'error');
@@ -387,109 +360,56 @@
       }
     }
 
-    function populateStopsDropdown(stops) {
-      const select = document.getElementById('stops-select');
-      select.innerHTML = '<option value="">-- Select a stop --</option>';
-      stops.forEach(stop => {
-        const option = document.createElement('option');
-        option.value = stop;
-        option.textContent = stop;
-        select.appendChild(option);
-      });
-      select.disabled = false;
-      addLog(`✅ Stops dropdown populated with ${stops.length} stops`, 'success');
-    }
-
-    function populateDirectionsDropdown(directions) {
-      const select = document.getElementById('directions-select');
-      select.innerHTML = '<option value="">-- Select a direction --</option>';
-      directions.forEach(direction => {
-        const option = document.createElement('option');
-        option.value = direction;
-        option.textContent = direction;
-        select.appendChild(option);
-      });
-      select.disabled = false;
-      addLog(`✅ Directions dropdown populated with ${directions.length} directions`, 'success');
-    }
-
     function renderCard() {
-      try {
-        if (!tamCardLoaded) {
-          addLog('❌ tam-card is not loaded yet.', 'error');
-          return;
-        }
+      const stopSelect = document.getElementById('stops-select');
+      const routeSelect = document.getElementById('routes-select');
+      const directionSelect = document.getElementById('directions-select');
+      
+      const stop = stopSelect.value;
+      const route = routeSelect.value;
+      const direction = directionSelect.value;
 
-        const stopSelect = document.getElementById('stops-select');
-        const directionSelect = document.getElementById('directions-select');
-        const stop = stopSelect.value;
-        const direction = directionSelect.value;
-
-        if (!stop || !direction) {
-          addLog('⚠️ Please select both a stop and direction', 'warn');
-          return;
-        }
-
-        addLog('🎨 Attempting to render tam-card...', 'info');
-        
-        const container = document.getElementById('card-container');
-        container.innerHTML = '';
-
-        // Create the tam-card element
-        const card = document.createElement('tam-card');
-        
-        // Set config with API host
-        const config = {
-          type: 'custom:tam-card',
-          stop: stop,
-          direction: direction,
-          api_host: apiHost,
-          backgroundColor: 'auto',
-          textColor: 'auto',
-        };
-        
-        addLog(`Setting card config: stop=${config.stop}, direction=${config.direction}, api_host=${config.api_host}`, 'info');
-        
-        // Set the hass property
-        card.hass = mockHass;
-        addLog('✅ hass property set', 'success');
-        
-        // Append to DOM
-        container.appendChild(card);
-        addLog('✅ Card appended to DOM', 'success');
-
-        // Call setConfig
-        if (typeof card.setConfig === 'function') {
-          addLog('⏳ Calling setConfig...', 'info');
-          card.setConfig(config).then(() => {
-            addLog('✅ setConfig completed', 'success');
-          }).catch(err => {
-            addLog(`❌ setConfig error: ${err.message}`, 'error');
-          });
-        } else {
-          addLog('❌ setConfig method not found on element', 'error');
-        }
-
-      } catch (e) {
-        addLog(`❌ Error rendering card: ${e.message}`, 'error');
-        document.getElementById('card-container').innerHTML = `<span class="error">Error: ${e.message}</span>`;
+      if (!stop) {
+        addLog('⚠️ Please select a stop', 'warn');
+        return;
       }
+
+      const config = {
+        type: 'custom:tam-card',
+        stop: stop,
+      };
+
+      if (route) {
+        config.route_short_name = route;
+      }
+
+      if (direction) {
+        config.direction = direction;
+      }
+
+      addLog(`🎨 Rendering card with config: ${JSON.stringify(config)}`, 'info');
+
+      const cardContainer = document.getElementById('card-container');
+      cardContainer.innerHTML = '';
+
+      const tamCard = document.createElement('tam-card');
+      tamCard.setConfig(config);
+      tamCard.hass = window.hass;
+
+      cardContainer.appendChild(tamCard);
+      addLog(`✅ Card rendered successfully!`, 'success');
     }
 
+    // Event listeners
     document.getElementById('test-stops-btn').addEventListener('click', testStopsApi);
     document.getElementById('test-passages-btn').addEventListener('click', testPassagesApi);
     document.getElementById('render-card-btn').addEventListener('click', renderCard);
-    
-    document.getElementById('stops-select').addEventListener('change', () => {
-      document.getElementById('directions-select').innerHTML = '<option value="">Loading directions...</option>';
-      document.getElementById('directions-select').disabled = true;
-      // Optionally auto-fetch directions when stop changes
-      setTimeout(() => testPassagesApi(), 500);
-    });
 
-    addLog('🚀 Initializing TAM Card Debugger (API Version)...', 'info');
-    addLog(`Using API Host: ${apiHost}`, 'info');
-    init();
+    // Initialize
+    window.addEventListener('DOMContentLoaded', () => {
+      addLog('🚀 TAM Card Debug Console initialized', 'info');
+      document.getElementById('load-status').textContent = '✅ Ready to test';
+    });
   </script>
 </body>
 </html>
