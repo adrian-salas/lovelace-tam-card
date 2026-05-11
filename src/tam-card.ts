@@ -159,7 +159,7 @@ export class TamCard extends LitElement {
 
 		return html`
 			<ha-card tabindex="0" aria-label="TAM">
-				${this.fetchedData.map((passage, index) => {
+				${this.fetchedData.map((passage) => {
 					const proche = passage.minutes_from_now < 2;
 					const noConversion = passage.minutes_from_now === undefined || passage.minutes_from_now < 0;
 					const routeShortName = passage.route_short_name || '0';
