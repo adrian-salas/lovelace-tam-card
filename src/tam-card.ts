@@ -4,7 +4,7 @@ import { HomeAssistant, LovelaceCardEditor } from 'custom-card-helpers';
 import './editor';
 
 import { fetchPassages, normalizeApiHost, parsePassageData } from './utils';
-import { Passage, TamCardConfig } from './types';
+import { Passage, TamCardConfig, PassageWithRoute } from './types';
 import { CARD_VERSION } from './const';
 
 import { color } from './color';
@@ -31,13 +31,13 @@ export class TamCard extends LitElement {
 	@property() public hass?: HomeAssistant;
 	@property() private _config?: TamCardConfig;
 	@property() private waitFetch = false;
-	@property() private fetchedData: Record<string, Record<string, unknown>> | null = null;
+	@property() private fetchedData: PassageWithRoute[] | null = null;
 
 	public async setConfig(config: TamCardConfig): Promise<void> {
 		if (!config) {
 			throw new Error(localize('common.invalid_configuration'));
 		}
-		if (!config.stop || config.stop.length === 0 || !config.direction || config.direction.length === 0) {
+		if (!config.stop || config.stop.length === 0) {
 			return;
 		}
 
@@ -46,70 +46,64 @@ export class TamCard extends LitElement {
 		};
 	}
 
-	protected timeConvert(n: number, nb: number): string {
+	protected timeConvert(n: number): string {
 		const num = n;
-		const hours = num / 60;
-		const rhours = Math.floor(hours);
-		const minutes = (hours - rhours) * 60;
-		const rminutes = Math.round(minutes);
-		if (rhours != 0) return rhours + ' h ' + rminutes + ' min';
-		else if (nb === 1) return rminutes + ' minutes';
-		else return rminutes + ' min';
+		const hours = Math.floor(num / 60);
+		const minutes = num % 60;
+		if (hours > 0) {
+			return `${hours}h${minutes}`;
+		}
+		return `${minutes}min`;
 	}
 
 	protected sleep(ms: number): Promise<void> {
 		return new Promise(resolve => setTimeout(resolve, ms));
 	}
 
-	protected checkBackgroundColor(number: string | number): string {
+	protected checkBackgroundColor(routeNumber: string | number): string {
 		if (this._config?.backgroundColor) {
-			if (this._config?.backgroundColor !== 'auto')
-				return validateColor(this._config?.backgroundColor) ? this._config?.backgroundColor : color[number];
+			if (this._config?.backgroundColor !== 'auto') {
+				return validateColor(this._config?.backgroundColor) ? this._config?.backgroundColor : color[routeNumber];
+			}
 		}
-		return color[number];
+		return color[routeNumber];
 	}
 
 	protected checkTextColor(defaultColor: string): string {
 		if (this._config?.textColor) {
-			if (this._config?.textColor !== 'auto')
+			if (this._config?.textColor !== 'auto') {
 				return validateColor(this._config?.textColor) ? this._config?.textColor : defaultColor;
+			}
 		}
 		return defaultColor;
 	}
 
-	protected parseCourseTam(result: Passage[], stopName: string, direction: string): Record<string, unknown> {
-		const res: Record<string, unknown> = {};
-		const time = parsePassageData(result);
-
-		if (result.length === 0) {
-			res['time'] = time;
-			res['stop'] = stopName;
-			res['direction'] = direction;
-			res['icon'] = icon[0];
-			res['backgroundColor'] = this.checkBackgroundColor(0);
-			res['textColor'] = this.checkTextColor('black');
-		} else {
-			const routeShortName = result[0].route_short_name || 0;
-			res['time'] = time;
-			res['stop'] = result[0].stop_name || stopName;
-			res['direction'] = direction || result[0].trip_headsign || '';
-			res['icon'] = icon[routeShortName] || icon[0];
-			res['backgroundColor'] = this.checkBackgroundColor(routeShortName);
-			res['textColor'] = this.checkTextColor('black');
-		}
-		return res;
+	protected filterPassages(passages: Passage[]): PassageWithRoute[] {
+		return passages
+			.filter(p => {
+				if (this._config?.direction && p.trip_headsign !== this._config.direction) {
+					return false;
+				}
+				if (this._config?.route_short_name && p.route_short_name !== this._config.route_short_name) {
+					return false;
+				}
+				return true;
+			})
+			.slice(0, 5)
+			.map(p => ({
+				...p,
+				displayRoute: p.route_short_name || '?',
+				displayDirection: p.trip_headsign || 'Direction inconnue',
+				displayTime: p.minutes_from_now ? this.timeConvert(Math.floor(p.minutes_from_now)) : 'Indisponible',
+			}));
 	}
 
-	protected async fetchPassagesWithRetry(stopName: string, direction: string, retries = 2): Promise<Passage[]> {
+	protected async fetchPassagesWithRetry(stopName: string, retries = 2): Promise<Passage[]> {
 		let attempts = 0;
 		const apiHost = normalizeApiHost(this._config?.api_host);
 		while (attempts <= retries) {
 			try {
-				const passages = await fetchPassages(apiHost, stopName, 5);
-				if (!direction) {
-					return passages;
-				}
-				return passages.filter(passage => passage.trip_headsign === direction);
+				return await fetchPassages(apiHost, stopName, 50);
 			} catch (error) {
 				attempts += 1;
 				if (attempts > retries) {
@@ -122,20 +116,16 @@ export class TamCard extends LitElement {
 	}
 
 	protected async fetchDataApi(): Promise<void> {
-		if (!this._config?.stop || !this._config?.direction) {
+		if (!this._config?.stop) {
 			return;
 		}
 		this.fetchedData = null;
 		try {
-			const resultToParse = await this.fetchPassagesWithRetry(this._config.stop, this._config.direction);
-			this.fetchedData = {
-				result: this.parseCourseTam(resultToParse, this._config.stop, this._config.direction),
-			};
+			const passages = await this.fetchPassagesWithRetry(this._config.stop);
+			this.fetchedData = this.filterPassages(passages);
 		} catch (error) {
 			console.error('Error fetching passages:', error);
-			this.fetchedData = {
-				result: this.parseCourseTam([], this._config.stop, this._config.direction),
-			};
+			this.fetchedData = [];
 		}
 	}
 
@@ -150,157 +140,148 @@ export class TamCard extends LitElement {
 
 	protected render(): TemplateResult | void {
 		if (!this._config || !this.hass) {
-			return html`
-				Prévisualisation: Veuillez sélectionner un arrêt et une direction
-			`;
+			return html`<p>Veuillez sélectionner un arrêt</p>`;
 		}
 
 		this.waitFetchApi();
 
-		if (!this.fetchedData || !this.fetchedData['result']) {
+		if (this.fetchedData === null) {
 			return html`
 				<p class="dot-loading">
 					Chargement&nbsp<span>.</span><span>.</span><span>.</span><span>.</span><span>.</span>
 				</p>
 			`;
-		} else {
-			const result = this.fetchedData['result'] as Record<string, unknown>;
-			const time = result?.time as string[];
-			const proche = time?.[0] == 'Proche !!';
-			const noConversion =
-				time?.[0] == 'Proche !!' || time?.[0] == 'Indisponible' || time?.[0] == 'Fin de service';
-
-			if (time?.length > 1) {
-				return html`
-					<ha-card tabindex="0" aria-label="TAM">
-						<div
-							id="states"
-							style="background-color: ${result?.backgroundColor}; color: ${result?.textColor}"
-							class="${proche ? 'card-content clignote' : 'card-content'}"
-						>
-							<div class="flex">
-								<div class="badge">
-									<ha-icon icon="${result?.icon || 'mdi:tram'}"></ha-icon>
-								</div>
-								<div class="text cap info flexAlign">
-									<div>${(result?.stop as string)?.toLowerCase()}</div>
-									&nbsp&nbsp
-									<div class="">➜</div>
-									&nbsp&nbsp
-									<div>${(result?.direction as string)?.toLowerCase()}</div>
-								</div>
-
-								<div class="text right flexAlign">
-									<div>
-										${noConversion
-											? time?.[0]
-											: this.timeConvert(parseInt(time?.[0] as string, 10), 2)}
-									</div>
-									&nbsp&nbsp&nbsp
-									<div class="bold">|</div>
-									&nbsp&nbsp&nbsp
-									<div>
-										${this.timeConvert(parseInt(time?.[1] as string, 10), 2)}
-									</div>
-								</div>
-							</div>
-						</div>
-					</ha-card>
-				`;
-			} else {
-				return html`
-					<ha-card tabindex="0" aria-label="TAM">
-						<div
-							id="states"
-							style="background-color: ${result?.backgroundColor}; color: ${result?.textColor}"
-							class="${proche ? 'card-content clignote' : 'card-content'}"
-						>
-							<div class="flex">
-								<div class="badge">
-									<ha-icon icon="${result?.icon || 'mdi:tram'}"></ha-icon>
-								</div>
-								<div class="text cap info flexAlign">
-									<div class="">
-										${(result?.stop as string)?.toLowerCase()}
-									</div>
-									&nbsp&nbsp
-									<div class="">➜</div>
-									&nbsp&nbsp
-									<div class="text">
-										${(result?.direction as string)?.toLowerCase()}
-									</div>
-								</div>
-								<div class="text right flexAlign">
-									<div class="">
-										${noConversion ? time : this.timeConvert(parseInt(time?.[0] as string, 10), 1)}
-									</div>
-								</div>
-							</div>
-						</div>
-					</ha-card>
-				`;
-			}
 		}
+
+		if (this.fetchedData.length === 0) {
+			return html`
+				<ha-card tabindex="0" aria-label="TAM">
+					<div class="card-content">
+						<p>Aucun passage disponible</p>
+					</div>
+				</ha-card>
+			`;
+		}
+
+		return html`
+			<ha-card tabindex="0" aria-label="TAM">
+				<div class="card-header">
+					<h2>${(this._config.stop as string)?.toLowerCase()}</h2>
+				</div>
+				<div class="card-content">
+					${this.fetchedData.map((passage, index) => {
+						const isFirst = index === 0;
+						const proche = parseInt(passage.minutes_from_now?.toString() || '0', 10) < 2;
+						return html`
+							<div class="passage-row ${proche ? 'proche' : ''} ${isFirst ? 'first' : ''}">
+								<div class="passage-route">
+									<div class="route-badge" style="background-color: ${this.checkBackgroundColor(passage.displayRoute)}; color: ${this.checkTextColor('black')}">
+										${passage.displayRoute}
+									</div>
+								</div>
+								<div class="passage-info">
+									<div class="direction">${passage.displayDirection?.toLowerCase()}</div>
+								</div>
+								<div class="passage-time">
+									<div class="time ${proche ? 'blink' : ''}">${passage.displayTime}</div>
+								</div>
+							</div>
+						`;
+					})}
+				</div>
+			</ha-card>
+		`;
 	}
 
 	static get styles(): CSSResult {
 		return css`
-			.flex {
-				display: flex;
-				justify-content: space-between;
-				align-items: center;
-				min-width: 0px;
-				flex: 1 1 0%;
+			.card-header {
+				padding: 16px;
+				border-bottom: 1px solid #e0e0e0;
 			}
-			.card-content {
-				border-radius: 0.3em;
-			}
-			.flexAlign {
-				display: flex;
-			}
-			.info {
-				white-space: nowrap;
-				text-overflow: ellipsis;
-				overflow: hidden;
-				flex: 1 0 60px;
-				margin-left: 1em;
-			}
-			.right {
-				text-align: right;
-			}
-			.cap {
+
+			.card-header h2 {
+				margin: 0;
+				font-size: 1.3em;
 				text-transform: capitalize;
 			}
-			.bold {
-				font-weight: 700;
-				font-size: 2em;
-				margin-top: -0.1em;
+
+			.card-content {
+				padding: 0;
 			}
-			.text {
+
+			.passage-row {
+				display: flex;
+				align-items: center;
+				padding: 12px 16px;
+				border-bottom: 1px solid #f0f0f0;
+				gap: 12px;
+				transition: background-color 0.2s;
+			}
+
+			.passage-row:last-child {
+				border-bottom: none;
+			}
+
+			.passage-row.first {
+				background-color: #f5f5f5;
+				font-weight: 500;
+			}
+
+			.passage-row.proche {
+				animation: blink 1.5s infinite;
+			}
+
+			.passage-route {
+				flex-shrink: 0;
+			}
+
+			.route-badge {
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				width: 40px;
+				height: 40px;
+				border-radius: 50%;
+				font-weight: bold;
+				font-size: 0.9em;
+				box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+			}
+
+			.passage-info {
+				flex: 1;
+				min-width: 0;
+			}
+
+			.direction {
+				font-size: 0.95em;
+				color: #333;
+				text-transform: capitalize;
+				white-space: nowrap;
+				overflow: hidden;
+				text-overflow: ellipsis;
+			}
+
+			.passage-time {
+				flex-shrink: 0;
+				text-align: right;
+			}
+
+			.time {
 				font-size: 1em;
+				font-weight: 500;
+				color: #333;
+				min-width: 60px;
 			}
-			.ha-icon {
-				width: 10px;
-				height: 10px;
+
+			.time.blink {
+				color: #ff5722;
+				animation: blink 1.5s infinite;
 			}
-			.clignote {
-				animation-duration: 2.5s;
-				animation-name: clignoter;
-				animation-iteration-count: infinite;
-				transition: none;
-			}
-			@keyframes clignoter {
-				0% {
-					opacity: 1;
-				}
-				50% {
-					opacity: 0.2;
-				}
-				100% {
-					opacity: 1;
-				}
-			}
+
 			.dot-loading {
+				padding: 20px;
+				text-align: center;
 				font-size: 1.6em;
 			}
 
@@ -319,22 +300,24 @@ export class TamCard extends LitElement {
 			.dot-loading span:nth-child(3) {
 				animation-delay: 0.4s;
 			}
+
 			.dot-loading span:nth-child(4) {
 				animation-delay: 0.6s;
 			}
+
 			.dot-loading span:nth-child(5) {
 				animation-delay: 0.8s;
 			}
 
 			@keyframes blink {
 				0% {
-					opacity: 0.2;
-				}
-				20% {
 					opacity: 1;
 				}
+				50% {
+					opacity: 0.3;
+				}
 				100% {
-					opacity: 0.2;
+					opacity: 1;
 				}
 			}
 		`;
