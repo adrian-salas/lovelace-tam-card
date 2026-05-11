@@ -285,14 +285,19 @@
         const data = await response.json();
         addLog(`✅ Stops API working!`, 'success');
         
-        if (Array.isArray(data)) {
-          addLog(`✅ Received ${data.length} stops`, 'success');
-          addLog(`Sample stops: ${data.slice(0, 3).join(', ')}`, 'info');
-          availableStops = data;
-          populateStopsDropdown(data);
-          document.getElementById('api-result').innerHTML = `<span class="success">✅ API working! Stops received: ${data.length}</span>`;
+        // Handle both array and nested data structure
+        let stopsArray = Array.isArray(data) ? data : (data.data && Array.isArray(data.data) ? data.data : []);
+        
+        if (stopsArray.length > 0) {
+          // Extract stop names
+          const stops = stopsArray.map(stop => stop.Name || stop).filter(Boolean);
+          addLog(`✅ Received ${stops.length} stops`, 'success');
+          addLog(`Sample stops: ${stops.slice(0, 3).join(', ')}`, 'info');
+          availableStops = stops;
+          populateStopsDropdown(stops);
+          document.getElementById('api-result').innerHTML = `<span class="success">✅ API working! Stops received: ${stops.length}</span>`;
         } else {
-          addLog(`⚠️ Unexpected response format: ${JSON.stringify(data).substring(0, 100)}`, 'warn');
+          addLog(`⚠️ No stops found in response`, 'warn');
         }
       } catch (e) {
         addLog(`❌ API Error: ${e.message}`, 'error');
@@ -330,12 +335,15 @@
         const data = await response.json();
         addLog(`✅ Passages API working!`, 'success');
         
-        if (Array.isArray(data)) {
-          addLog(`✅ Received ${data.length} passages`, 'success');
-          addLog(`Response: ${JSON.stringify(data, null, 2).substring(0, 200)}...`, 'info');
+        // Handle both array and nested data structure
+        let passagesArray = Array.isArray(data) ? data : (data.data && Array.isArray(data.data) ? data.data : []);
+        
+        if (passagesArray.length > 0) {
+          addLog(`✅ Received ${passagesArray.length} passages`, 'success');
+          addLog(`Response: ${JSON.stringify(passagesArray[0], null, 2)}`, 'info');
           
           // Extract unique routes
-          const routes = [...new Set(data.map(p => p.route_short_name).filter(Boolean))].sort();
+          const routes = [...new Set(passagesArray.map(p => p.route_short_name).filter(Boolean))].sort();
           if (routes.length > 0) {
             availableRoutes = routes;
             populateRoutesDropdown(routes);
@@ -343,16 +351,16 @@
           }
           
           // Extract unique directions
-          const directions = [...new Set(data.map(p => p.trip_headsign || p.direction).filter(Boolean))].sort();
+          const directions = [...new Set(passagesArray.map(p => p.trip_headsign || p.direction).filter(Boolean))].sort();
           if (directions.length > 0) {
             availableDirections = directions;
             populateDirectionsDropdown(directions);
             addLog(`Found ${directions.length} unique directions`, 'success');
           }
           
-          document.getElementById('api-result').innerHTML = `<span class="success">✅ API working! Passages received: ${data.length}</span>`;
+          document.getElementById('api-result').innerHTML = `<span class="success">✅ API working! Passages received: ${passagesArray.length}</span>`;
         } else {
-          addLog(`⚠️ Unexpected response format`, 'warn');
+          addLog(`⚠️ No passages found`, 'warn');
         }
       } catch (e) {
         addLog(`❌ API Error: ${e.message}`, 'error');
