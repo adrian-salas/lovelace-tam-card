@@ -8,18 +8,21 @@ export class TamCardEditor extends LitElement implements LovelaceCardEditor {
 	@property() public hass?: HomeAssistant;
 	@property() private _config?: TamCardConfig;
 	@property() private stops: string[] = [];
-	@property() private directions: string[] = [];
 	@property() private routes: string[] = [];
+	@property() private directions: string[] = [];
 	@property() private loadingStops = false;
-	@property() private loadingDirections = false;
 	@property() private loadingRoutes = false;
+	@property() private loadingDirections = false;
 	@property() private loadingError?: string;
 
 	public async setConfig(config: TamCardConfig): Promise<void> {
 		this._config = config;
 		await this.loadStops();
 		if (this._config.stop) {
-			await this.loadDirectionsAndRoutes(this._config.stop);
+			await this.loadRoutes(this._config.stop);
+			if (this._config.route_short_name) {
+				await this.loadDirections(this._config.stop, this._config.route_short_name);
+			}
 		}
 	}
 
@@ -30,16 +33,16 @@ export class TamCardEditor extends LitElement implements LovelaceCardEditor {
 		return '';
 	}
 
-	get _direction(): string {
+	get _route_short_name(): string {
 		if (this._config) {
-			return this._config.direction || '';
+			return this._config.route_short_name || '';
 		}
 		return '';
 	}
 
-	get _route(): string {
+	get _direction(): string {
 		if (this._config) {
-			return this._config.route_short_name || '';
+			return this._config.direction || '';
 		}
 		return '';
 	}
@@ -75,41 +78,51 @@ export class TamCardEditor extends LitElement implements LovelaceCardEditor {
 			this.stops = await fetchStops(this._apiHost);
 		} catch (error) {
 			this.stops = [];
-			this.loadingError = "Impossible de charger les arrets depuis l'API";
+			this.loadingError = "Impossible de charger les arrêts depuis l'API";
 			console.error(error);
 		} finally {
 			this.loadingStops = false;
 		}
 	}
 
-	protected async loadDirectionsAndRoutes(stopName: string): Promise<void> {
+	protected async loadRoutes(stopName: string): Promise<void> {
 		if (!stopName) {
-			this.directions = [];
 			this.routes = [];
 			return;
 		}
-		this.loadingDirections = true;
 		this.loadingRoutes = true;
 		this.loadingError = undefined;
 		try {
 			const passages = await fetchPassages(this._apiHost, stopName, 50);
-			const directions = passages
-				.map(passage => passage.trip_headsign)
-				.filter(direction => Boolean(direction));
-			const routes = passages
-				.map(passage => passage.route_short_name)
-				.filter(route => Boolean(route));
+			const uniqueRoutes = [...new Set(passages.map(p => p.route_short_name))].filter(r => Boolean(r)).sort();
+			this.routes = uniqueRoutes;
+		} catch (error) {
+			this.routes = [];
+			this.loadingError = "Impossible de charger les lignes depuis l'API";
+			console.error(error);
+		} finally {
+			this.loadingRoutes = false;
+		}
+	}
 
-			this.directions = [...new Set(directions)].sort();
-			this.routes = [...new Set(routes)].sort();
+	protected async loadDirections(stopName: string, routeShortName: string): Promise<void> {
+		if (!stopName || !routeShortName) {
+			this.directions = [];
+			return;
+		}
+		this.loadingDirections = true;
+		this.loadingError = undefined;
+		try {
+			const passages = await fetchPassages(this._apiHost, stopName, 50);
+			const filteredPassages = passages.filter(p => p.route_short_name === routeShortName);
+			const uniqueDirections = [...new Set(filteredPassages.map(p => p.trip_headsign))].filter(d => Boolean(d)).sort();
+			this.directions = uniqueDirections;
 		} catch (error) {
 			this.directions = [];
-			this.routes = [];
-			this.loadingError = "Impossible de charger les directions/routes depuis l'API";
+			this.loadingError = "Impossible de charger les directions depuis l'API";
 			console.error(error);
 		} finally {
 			this.loadingDirections = false;
-			this.loadingRoutes = false;
 		}
 	}
 
@@ -118,7 +131,7 @@ export class TamCardEditor extends LitElement implements LovelaceCardEditor {
 			return html`
 				<div class="card-config">
 					<div class="description">
-						<p>Veuillez patienter le temps de charger les arrêts / directions disponibles.</p>
+						<p>Veuillez patienter le temps de charger les arrêts disponibles.</p>
 					</div>
 				</div>
 			`;
@@ -127,14 +140,8 @@ export class TamCardEditor extends LitElement implements LovelaceCardEditor {
 		return html`
 			<div class="card-config">
 				<div class="description">
-					<p>
-						Si votre arrêt / direction n'est pas disponible après le chargement, réessayer ultérieurement.
-					</p>
-					${this.loadingError
-						? html`
-								<p>${this.loadingError}</p>
-						  `
-						: html``}
+					<p>Configuration du TAM Card - Laissez les champs vides pour afficher tous les passages</p>
+					${this.loadingError ? html` <p style="color: red;">${this.loadingError}</p> ` : html``}
 				</div>
 				<div class="option1">
 					<div class="values">
@@ -171,20 +178,16 @@ export class TamCardEditor extends LitElement implements LovelaceCardEditor {
 				<div class="option2">
 					<div class="values">
 						<ha-select
-							label="Arrêt"
+							label="Arrêt (Requis)"
 							@selected=${this._valueChanged}
 							.configValue=${'stop'}
 							.value=${this._stop}
 							@closed=${(ev): void => ev.stopPropagation()}
 						>
 							${this.loadingStops
-								? html`
-										<mwc-list-item .value=${''}>Chargement...</mwc-list-item>
-								  `
+								? html` <mwc-list-item .value=${''}>Chargement...</mwc-list-item> `
 								: this.stops.map(val => {
-										return html`
-											<mwc-list-item .value="${val}">${val}</mwc-list-item>
-										`;
+										return html` <mwc-list-item .value="${val}">${val}</mwc-list-item> `;
 								  })}
 						</ha-select>
 					</div>
@@ -192,31 +195,27 @@ export class TamCardEditor extends LitElement implements LovelaceCardEditor {
 						? html`
 								<div class="values">
 									<ha-select
-										label="Route (optionnel - ex: T1, 3, 4)"
+										label="Ligne (Optionnel)"
 										@selected=${this._valueChanged}
 										.configValue=${'route_short_name'}
-										.value=${this._route}
+										.value=${this._route_short_name}
 										@closed=${(ev): void => ev.stopPropagation()}
 									>
-										<mwc-list-item .value=${''}>Toutes les routes</mwc-list-item>
+										<mwc-list-item .value=${''}>Toutes les lignes</mwc-list-item>
 										${this.loadingRoutes
-											? html`
-													<mwc-list-item .value=${''}>Chargement...</mwc-list-item>
-											  `
+											? html` <mwc-list-item .value=${''}>Chargement...</mwc-list-item> `
 											: this.routes.map(val => {
-													return html`
-														<mwc-list-item .value="${val}">Route ${val}</mwc-list-item>
-													`;
+													return html` <mwc-list-item .value="${val}">${val}</mwc-list-item> `;
 											  })}
 									</ha-select>
 								</div>
-						  `
+							  `
 						: html``}
-					${this._config.stop
+					${this._config.stop && this._config.route_short_name
 						? html`
 								<div class="values">
 									<ha-select
-										label="Direction (optionnel)"
+										label="Direction (Optionnel)"
 										@selected=${this._valueChanged}
 										.configValue=${'direction'}
 										.value=${this._direction}
@@ -224,17 +223,13 @@ export class TamCardEditor extends LitElement implements LovelaceCardEditor {
 									>
 										<mwc-list-item .value=${''}>Toutes les directions</mwc-list-item>
 										${this.loadingDirections
-											? html`
-													<mwc-list-item .value=${''}>Chargement...</mwc-list-item>
-											  `
+											? html` <mwc-list-item .value=${''}>Chargement...</mwc-list-item> `
 											: this.directions.map(val => {
-													return html`
-														<mwc-list-item .value="${val}">${val}</mwc-list-item>
-													`;
+													return html` <mwc-list-item .value="${val}">${val}</mwc-list-item> `;
 											  })}
 									</ha-select>
 								</div>
-						  `
+							  `
 						: html``}
 				</div>
 			</div>
@@ -264,20 +259,28 @@ export class TamCardEditor extends LitElement implements LovelaceCardEditor {
 		if (target.configValue === 'api_host') {
 			this._config.api_host = normalizeApiHost(this._config.api_host);
 			this._config.stop = '';
-			this._config.direction = '';
 			this._config.route_short_name = '';
+			this._config.direction = '';
 			this.stops = [];
-			this.directions = [];
 			this.routes = [];
+			this.directions = [];
 			await this.loadStops();
 		}
 
 		if (target.configValue === 'stop') {
-			this._config.direction = '';
 			this._config.route_short_name = '';
-			this.directions = [];
+			this._config.direction = '';
 			this.routes = [];
-			await this.loadDirectionsAndRoutes(target.value);
+			this.directions = [];
+			await this.loadRoutes(target.value);
+		}
+
+		if (target.configValue === 'route_short_name') {
+			this._config.direction = '';
+			this.directions = [];
+			if (target.value) {
+				await this.loadDirections(this._config.stop!, target.value);
+			}
 		}
 
 		fireEvent(this, 'config-changed', { config: this._config });
@@ -299,7 +302,7 @@ export class TamCardEditor extends LitElement implements LovelaceCardEditor {
 			.option2 {
 				display: flex;
 				margin: auto;
-				height: 71vh;
+				height: auto;
 				flex-direction: column;
 			}
 			.description {

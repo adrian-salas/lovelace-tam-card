@@ -46,27 +46,26 @@ export class TamCard extends LitElement {
 		};
 	}
 
-	protected timeConvert(n: number, nb: number): string {
+	protected timeConvert(n: number): string {
 		const num = n;
 		const hours = num / 60;
 		const rhours = Math.floor(hours);
 		const minutes = (hours - rhours) * 60;
 		const rminutes = Math.round(minutes);
-		if (rhours != 0) return rhours + ' h ' + rminutes + ' min';
-		else if (nb === 1) return rminutes + ' minutes';
-		else return rminutes + ' min';
+		if (rhours !== 0) return `${rhours}h ${rminutes}min`;
+		else return `${rminutes}min`;
 	}
 
 	protected sleep(ms: number): Promise<void> {
 		return new Promise(resolve => setTimeout(resolve, ms));
 	}
 
-	protected checkBackgroundColor(number: string | number): string {
+	protected checkBackgroundColor(routeShortName: string | number): string {
 		if (this._config?.backgroundColor) {
 			if (this._config?.backgroundColor !== 'auto')
-				return validateColor(this._config?.backgroundColor) ? this._config?.backgroundColor : color[number];
+				return validateColor(this._config?.backgroundColor) ? this._config?.backgroundColor : color[routeShortName];
 		}
-		return color[number];
+		return color[routeShortName];
 	}
 
 	protected checkTextColor(defaultColor: string): string {
@@ -82,19 +81,19 @@ export class TamCard extends LitElement {
 		const apiHost = normalizeApiHost(this._config?.api_host);
 		while (attempts <= retries) {
 			try {
-				const passages = await fetchPassages(apiHost, stopName, 5);
+				const passages = await fetchPassages(apiHost, stopName, 50);
+				
+				// Filter by route if specified
 				let filtered = passages;
-
+				if (this._config?.route_short_name) {
+					filtered = passages.filter(p => p.route_short_name === this._config?.route_short_name);
+				}
+				
 				// Filter by direction if specified
 				if (this._config?.direction) {
-					filtered = filtered.filter(passage => passage.trip_headsign === this._config?.direction);
+					filtered = filtered.filter(p => p.trip_headsign === this._config?.direction);
 				}
-
-				// Filter by route if specified
-				if (this._config?.route_short_name) {
-					filtered = filtered.filter(passage => passage.route_short_name === this._config?.route_short_name);
-				}
-
+				
 				return filtered;
 			} catch (error) {
 				attempts += 1;
@@ -113,8 +112,7 @@ export class TamCard extends LitElement {
 		}
 		this.fetchedData = null;
 		try {
-			const resultToParse = await this.fetchPassagesWithRetry(this._config.stop);
-			this.fetchedData = resultToParse;
+			this.fetchedData = await this.fetchPassagesWithRetry(this._config.stop);
 		} catch (error) {
 			console.error('Error fetching passages:', error);
 			this.fetchedData = [];
@@ -130,37 +128,10 @@ export class TamCard extends LitElement {
 		}
 	}
 
-	protected renderPassageRow(passage: Passage, index: number): TemplateResult {
-		const minutes = passage.minutes_from_now;
-		const noConversion = minutes < 2 || minutes === null;
-		const isClosing = minutes < 2;
-		const routeNum = passage.route_short_name || '?';
-		const direction = passage.trip_headsign?.toLowerCase() || 'Unknown';
-
-		return html`
-			<div
-				class="passage-row ${isClosing ? 'closing' : ''}"
-				style="background-color: ${this.checkBackgroundColor(routeNum)}; color: ${this.checkTextColor('black')}"
-			>
-				<div class="passage-number">${index + 1}</div>
-				<div class="route-badge">
-					<ha-icon icon="${icon[routeNum] || 'mdi:tram'}"></ha-icon>
-					<span class="route-name">${routeNum}</span>
-				</div>
-				<div class="passage-direction">${direction}</div>
-				<div class="passage-time">
-					${noConversion ? 'Proche !!' : this.timeConvert(minutes, 1)}
-				</div>
-			</div>
-		`;
-	}
-
 	protected render(): TemplateResult | void {
 		if (!this._config || !this.hass) {
 			return html`
-				<div class="card-preview">
-					Veuillez sélectionner un arrêt
-				</div>
+				Prévisualisation: Veuillez sélectionner un arrêt
 			`;
 		}
 
@@ -168,128 +139,123 @@ export class TamCard extends LitElement {
 
 		if (!this.fetchedData) {
 			return html`
-				<ha-card>
-					<p class="dot-loading">
-						Chargement&nbsp<span>.</span><span>.</span><span>.</span><span>.</span><span>.</span>
-					</p>
-				</ha-card>
+				<p class="dot-loading">
+					Chargement&nbsp<span>.</span><span>.</span><span>.</span><span>.</span><span>.</span>
+				</p>
 			`;
 		}
 
 		if (this.fetchedData.length === 0) {
 			return html`
-				<ha-card>
-					<div class="card-content">
-						<p>Aucun passage disponible pour ${this._config.stop}</p>
+				<ha-card tabindex="0" aria-label="TAM">
+					<div id="states" class="card-content">
+						<div class="flex">
+							<div class="text cap info">Aucun passage disponible</div>
+						</div>
 					</div>
 				</ha-card>
 			`;
 		}
 
 		return html`
-			<ha-card>
-				<div class="card-header">
-					<h2 class="stop-name">${this._config.stop?.toLowerCase()}</h2>
-				</div>
-				<div class="passages-list">
-					${this.fetchedData.slice(0, 5).map((passage, idx) => this.renderPassageRow(passage, idx))}
-				</div>
+			<ha-card tabindex="0" aria-label="TAM">
+				${this.fetchedData.map((passage, index) => {
+					const proche = passage.minutes_from_now < 2;
+					const noConversion = passage.minutes_from_now === undefined || passage.minutes_from_now < 0;
+					const routeShortName = passage.route_short_name || '0';
+					const backgroundColor = this.checkBackgroundColor(routeShortName);
+					const textColor = this.checkTextColor('black');
+					const cardIcon = icon[routeShortName] || icon[0];
+					const time = noConversion ? 'Fin de service' : this.timeConvert(passage.minutes_from_now);
+
+					return html`
+						<div
+							id="states"
+							style="background-color: ${backgroundColor}; color: ${textColor}"
+							class="${proche ? 'card-content clignote' : 'card-content'}"
+						>
+							<div class="flex">
+								<div class="badge">
+									<ha-icon icon="${cardIcon || 'mdi:tram'}"></ha-icon>
+								</div>
+								<div class="text cap info flexAlign">
+									<div>${routeShortName}</div>
+									&nbsp&nbsp
+									<div>➜</div>
+									&nbsp&nbsp
+									<div>${(passage.trip_headsign || '')?.toLowerCase()}</div>
+								</div>
+								<div class="text right">${time}</div>
+							</div>
+						</div>
+					`;
+				})}
 			</ha-card>
 		`;
 	}
 
 	static get styles(): CSSResult {
 		return css`
-			ha-card {
-				display: block;
+			.flex {
+				display: flex;
+				justify-content: space-between;
+				align-items: center;
+				min-width: 0px;
+				flex: 1 1 0%;
 			}
-
-			.card-preview {
-				padding: 16px;
-				text-align: center;
-				color: #666;
+			.card-content {
+				border-radius: 0.3em;
+				padding: 12px;
+				margin: 4px 0;
 			}
-
-			.card-header {
-				padding: 16px;
-				border-bottom: 1px solid #e0e0e0;
+			.flexAlign {
+				display: flex;
 			}
-
-			.stop-name {
-				margin: 0;
-				font-size: 1.3em;
+			.info {
+				white-space: nowrap;
+				text-overflow: ellipsis;
+				overflow: hidden;
+				flex: 1 0 60px;
+				margin-left: 1em;
+			}
+			.right {
+				text-align: right;
 				font-weight: 600;
+			}
+			.cap {
 				text-transform: capitalize;
 			}
-
-			.passages-list {
-				display: flex;
-				flex-direction: column;
+			.bold {
+				font-weight: 700;
+				font-size: 2em;
+				margin-top: -0.1em;
 			}
-
-			.passage-row {
-				display: flex;
-				align-items: center;
-				padding: 12px 16px;
-				border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-				gap: 12px;
-				transition: opacity 0.3s;
+			.text {
+				font-size: 1em;
 			}
-
-			.passage-row:last-child {
-				border-bottom: none;
-			}
-
-			.passage-row.closing {
-				animation: pulse 1s infinite;
-			}
-
-			.passage-number {
-				font-weight: bold;
-				min-width: 24px;
-				text-align: center;
-			}
-
-			.route-badge {
-				display: flex;
-				align-items: center;
-				gap: 6px;
-				font-weight: 600;
-				min-width: 50px;
-			}
-
-			.route-badge ha-icon {
+			.ha-icon {
 				width: 20px;
 				height: 20px;
 			}
-
-			.route-name {
-				font-size: 0.9em;
+			.clignote {
+				animation-duration: 2.5s;
+				animation-name: clignoter;
+				animation-iteration-count: infinite;
+				transition: none;
 			}
-
-			.passage-direction {
-				flex: 1;
-				text-transform: capitalize;
-				overflow: hidden;
-				text-overflow: ellipsis;
-				white-space: nowrap;
+			@keyframes clignoter {
+				0% {
+					opacity: 1;
+				}
+				50% {
+					opacity: 0.2;
+				}
+				100% {
+					opacity: 1;
+				}
 			}
-
-			.passage-time {
-				font-weight: 600;
-				min-width: 80px;
-				text-align: right;
-			}
-
-			.card-content {
-				padding: 16px;
-				text-align: center;
-				color: #666;
-			}
-
 			.dot-loading {
 				font-size: 1.6em;
-				text-align: center;
 			}
 
 			.dot-loading span {
@@ -307,11 +273,9 @@ export class TamCard extends LitElement {
 			.dot-loading span:nth-child(3) {
 				animation-delay: 0.4s;
 			}
-
 			.dot-loading span:nth-child(4) {
 				animation-delay: 0.6s;
 			}
-
 			.dot-loading span:nth-child(5) {
 				animation-delay: 0.8s;
 			}
@@ -327,18 +291,6 @@ export class TamCard extends LitElement {
 					opacity: 0.2;
 				}
 			}
-
-			@keyframes pulse {
-				0% {
-					opacity: 1;
-				}
-				50% {
-					opacity: 0.6;
-				}
-				100% {
-					opacity: 1;
-				}
-			}
 		`;
 	}
 }
@@ -350,5 +302,5 @@ customElements.define('tam-card', TamCard);
 	type: 'tam-card',
 	name: 'TAM Montpellier',
 	preview: false,
-	description: "La carte TAM Montpellier affiche les horaires des prochains TRAM / Bus d'un arrêt.",
+	description: "La carte TAM Montpellier affiche les horaires des prochains TRAM / Bus d'un arrêt défini.",
 });
