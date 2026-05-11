@@ -79,7 +79,11 @@ export async function fetchStops(apiHost: string): Promise<string[]> {
 		console.log('Raw API response:', responseData);
 
 		// Extract stops from the data array and use the 'Name' field
-		let stopsArray = Array.isArray(responseData) ? responseData : (responseData.data && Array.isArray(responseData.data) ? responseData.data : []);
+		const stopsArray = Array.isArray(responseData)
+			? responseData
+			: responseData.data && Array.isArray(responseData.data)
+			? responseData.data
+			: [];
 		if (stopsArray.length > 0) {
 			const stops = stopsArray.map((stop: Record<string, unknown>) => stop.Name).filter(name => name);
 			console.log(`✅ Extracted ${stops.length} stops`);
@@ -118,7 +122,11 @@ export async function fetchPassages(apiHost: string, stopName: string, limit = 5
 		console.log('Raw API response:', responseData);
 
 		// Extract passages from the data array
-		let passagesArray = Array.isArray(responseData) ? responseData : (responseData.data && Array.isArray(responseData.data) ? responseData.data : []);
+		const passagesArray = Array.isArray(responseData)
+			? responseData
+			: responseData.data && Array.isArray(responseData.data)
+			? responseData.data
+			: [];
 		if (passagesArray.length > 0) {
 			// Transform API response to match expected format
 			const passages = passagesArray.map((passage: Record<string, unknown>) => ({

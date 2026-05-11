@@ -115,7 +115,9 @@ export class TamCardEditor extends LitElement implements LovelaceCardEditor {
 		try {
 			const passages = await fetchPassages(this._apiHost, stopName, 50);
 			const filteredPassages = passages.filter(p => p.route_short_name === routeShortName);
-			const uniqueDirections = [...new Set(filteredPassages.map(p => p.trip_headsign))].filter(d => Boolean(d)).sort();
+			const uniqueDirections = [...new Set(filteredPassages.map(p => p.trip_headsign))]
+				.filter(d => Boolean(d))
+				.sort();
 			this.directions = uniqueDirections;
 		} catch (error) {
 			this.directions = [];
@@ -141,7 +143,11 @@ export class TamCardEditor extends LitElement implements LovelaceCardEditor {
 			<div class="card-config">
 				<div class="description">
 					<p>Configuration du TAM Card - Laissez les champs vides pour afficher tous les passages</p>
-					${this.loadingError ? html` <p style="color: red;">${this.loadingError}</p> ` : html``}
+					${this.loadingError
+						? html`
+								<p style="color: red;">${this.loadingError}</p>
+						  `
+						: html``}
 				</div>
 				<div class="option1">
 					<div class="values">
@@ -185,9 +191,13 @@ export class TamCardEditor extends LitElement implements LovelaceCardEditor {
 							@closed=${(ev): void => ev.stopPropagation()}
 						>
 							${this.loadingStops
-								? html` <mwc-list-item .value=${''}>Chargement...</mwc-list-item> `
+								? html`
+										<mwc-list-item .value=${''}>Chargement...</mwc-list-item>
+								  `
 								: this.stops.map(val => {
-										return html` <mwc-list-item .value="${val}">${val}</mwc-list-item> `;
+										return html`
+											<mwc-list-item .value="${val}">${val}</mwc-list-item>
+										`;
 								  })}
 						</ha-select>
 					</div>
@@ -203,13 +213,17 @@ export class TamCardEditor extends LitElement implements LovelaceCardEditor {
 									>
 										<mwc-list-item .value=${''}>Toutes les lignes</mwc-list-item>
 										${this.loadingRoutes
-											? html` <mwc-list-item .value=${''}>Chargement...</mwc-list-item> `
+											? html`
+													<mwc-list-item .value=${''}>Chargement...</mwc-list-item>
+											  `
 											: this.routes.map(val => {
-													return html` <mwc-list-item .value="${val}">${val}</mwc-list-item> `;
+													return html`
+														<mwc-list-item .value="${val}">${val}</mwc-list-item>
+													`;
 											  })}
 									</ha-select>
 								</div>
-							  `
+						  `
 						: html``}
 					${this._config.stop && this._config.route_short_name
 						? html`
@@ -223,13 +237,17 @@ export class TamCardEditor extends LitElement implements LovelaceCardEditor {
 									>
 										<mwc-list-item .value=${''}>Toutes les directions</mwc-list-item>
 										${this.loadingDirections
-											? html` <mwc-list-item .value=${''}>Chargement...</mwc-list-item> `
+											? html`
+													<mwc-list-item .value=${''}>Chargement...</mwc-list-item>
+											  `
 											: this.directions.map(val => {
-													return html` <mwc-list-item .value="${val}">${val}</mwc-list-item> `;
+													return html`
+														<mwc-list-item .value="${val}">${val}</mwc-list-item>
+													`;
 											  })}
 									</ha-select>
 								</div>
-							  `
+						  `
 						: html``}
 				</div>
 			</div>

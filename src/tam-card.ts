@@ -3,7 +3,7 @@ import { HomeAssistant, LovelaceCardEditor } from 'custom-card-helpers';
 
 import './editor';
 
-import { fetchPassages, normalizeApiHost, parsePassageData } from './utils';
+import { fetchPassages, normalizeApiHost } from './utils';
 import { Passage, TamCardConfig } from './types';
 import { CARD_VERSION } from './const';
 
@@ -63,7 +63,9 @@ export class TamCard extends LitElement {
 	protected checkBackgroundColor(routeShortName: string | number): string {
 		if (this._config?.backgroundColor) {
 			if (this._config?.backgroundColor !== 'auto')
-				return validateColor(this._config?.backgroundColor) ? this._config?.backgroundColor : color[routeShortName];
+				return validateColor(this._config?.backgroundColor)
+					? this._config?.backgroundColor
+					: color[routeShortName];
 		}
 		return color[routeShortName];
 	}
@@ -82,18 +84,18 @@ export class TamCard extends LitElement {
 		while (attempts <= retries) {
 			try {
 				const passages = await fetchPassages(apiHost, stopName, 50);
-				
+
 				// Filter by route if specified
 				let filtered = passages;
 				if (this._config?.route_short_name) {
 					filtered = passages.filter(p => p.route_short_name === this._config?.route_short_name);
 				}
-				
+
 				// Filter by direction if specified
 				if (this._config?.direction) {
 					filtered = filtered.filter(p => p.trip_headsign === this._config?.direction);
 				}
-				
+
 				return filtered;
 			} catch (error) {
 				attempts += 1;
@@ -159,7 +161,7 @@ export class TamCard extends LitElement {
 
 		return html`
 			<ha-card tabindex="0" aria-label="TAM">
-				${this.fetchedData.map((passage) => {
+				${this.fetchedData.map(passage => {
 					const proche = passage.minutes_from_now < 2;
 					const noConversion = passage.minutes_from_now === undefined || passage.minutes_from_now < 0;
 					const routeShortName = passage.route_short_name || '0';
